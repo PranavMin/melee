@@ -4,6 +4,10 @@
 
 #include <dolphin/pad.h>
 #include <melee/ft/forward.h>
+#include <melee/gm/forward.h>
+#include <melee/gm/gm_1A3F.h>
+#include <melee/gm/gmmain_lib.h>
+#include <melee/gm/gmscene.h>
 #include <melee/gm/gmvsmelee.h>
 #include <melee/lb/lbrelayexi.h>
 #include <melee/mn/mncharsel.h>
@@ -236,8 +240,13 @@ static void pollRelay(void)
         r->hdr.cmd == pending_cmd && r->resp.status == ST_OK)
     {
         if (pending_cmd == CMD_END_SET) {
-            /* Set reported and closed; the overlay disappears. */
+            /* Set reported and closed: leave the CSS back to the set list.
+             * force_main_menu makes GM_MENU's onEnter land on our menu; the
+             * transition pair is the one vanilla CSS-back uses. */
             has_set = false;
+            gmMainLib_GetGameRules()->force_main_menu = 1;
+            gm_ChangeGameModeAfterCurrentScene(GM_MENU);
+            gm_801A4B60();
         } else if (pending_cmd == CMD_REPORT_SCORE) {
             sent_flash = LB_TOURNEY_SENT_FLASH_FRAMES;
         }
@@ -271,12 +280,12 @@ static void redraw(void)
     css_text = HSD_SisLib_803A6754(0, css_ctx);
     css_text->default_kerning = 1;
 
-    /* Score, prominent and clear of the top-left logo. */
-    entry = HSD_SisLib_803A6B98(css_text, 200.0f, 34.0f, "%s  %d - %d  %s", p1,
+    /* Score at the bottom, under the character panels, clear of the top HUD. */
+    entry = HSD_SisLib_803A6B98(css_text, 190.0f, 442.0f, "%s  %d - %d  %s", p1,
                                 winsFor(1), winsFor(2), p2);
     HSD_SisLib_803A7548(css_text, entry, 0.7f, 0.7f);
 
-    /* Status line under the score: in-flight, just-sent, or failed. */
+    /* Status just above the score: in-flight, just-sent, or failed. */
     if (pending_cmd != 0) {
         status = "SENDING...";
     } else if (last_failed) {
@@ -287,14 +296,18 @@ static void redraw(void)
         status = NULL;
     }
     if (status != NULL) {
-        entry = HSD_SisLib_803A6B98(css_text, 200.0f, 64.0f, "%s", status);
-        HSD_SisLib_803A7548(css_text, entry, 0.6f, 0.6f);
+        entry = HSD_SisLib_803A6B98(css_text, 190.0f, 416.0f, "%s", status);
+        HSD_SisLib_803A7548(css_text, entry, 0.55f, 0.55f);
     }
 }
 
 void lbTourney_CSSFrame(void)
 {
     if (has_set) {
+        /* Kiosk: any exit from the CSS returns to the set list, not the VS
+         * menu. Keep force_main_menu set so when vanilla's B-back leaves the
+         * CSS, GM_MENU's onEnter lands on our Tournament menu. */
+        gmMainLib_GetGameRules()->force_main_menu = 1;
         if (css_ctx < 0) {
             css_ctx = HSD_SisLib_803A611C(0, NULL, 9, 0xD, 0, 0xE, 0, 0x13);
             css_dirty = true;

@@ -10,6 +10,7 @@
 #include <dolphin/pad.h>
 #include <melee/gm/forward.h>
 #include <melee/gm/gm_1A36.h>
+#include <melee/gm/gmmain_lib.h>
 #include <melee/lb/lbrelayexi.h>
 #include <melee/lb/lbtourney.h>
 #include <melee/mn/mnmain.h>
@@ -452,17 +453,36 @@ void mnTourney_Think(HSD_GObj* gobj)
     }
 }
 
+/* Force the venue's tournament state live each time we pass the main menu, so
+ * it holds regardless of what the memory-card save has (design.md R12): all
+ * characters unlocked, Stock mode, 4 stocks, 8:00, no items. Stages already
+ * default to all-unlocked but we set the mask too for good measure. */
+static void forceKioskDefaults(void)
+{
+    GameRules* rules = gmMainLib_GetGameRules();
+    struct GamePrefs* prefs = gmMainLib_GetGamePrefs();
+
+    rules->mode = 1;             /* Stock */
+    rules->stock_count = 4;
+    rules->stock_time_limit = 8; /* 8:00 in Stock mode (reads stock_time_limit) */
+
+    prefs->item_freq = 0;        /* items off (freq 0 == None) */
+    prefs->item_mask = 0;
+    prefs->stage_mask = 0xFFFFFFFF;
+
+    *gmMainLib_GetUnlockedCharactersBitmaskPtr() = 0xFFFF; /* all characters */
+}
+
 void mnTourney_MainMenuThink(HSD_GObj* gobj)
 {
     HSD_GObjProc* proc;
 
-    if (mn_804D6BC8.cooldown == 0 &&
-        (gm_GetButtonsTriggered(4) & PAD_TRIGGER_Z))
-    {
-        /* Enter the Tournament menu, sound-test style: swap cur_menu, spawn
-         * our think, free the main-menu think. The main-menu panel stays
-         * idle behind the overlay. */
-        sfxForward();
+    /* Kiosk: this station IS the tournament tool, so the main menu is never
+     * shown: drop straight into the set list the moment it would appear, and
+     * (re-)assert the tournament rules/unlocks each pass. The set list is also
+     * where END_SET and CSS-back return to (via force_main_menu). */
+    if (mn_804D6BC8.cooldown == 0) {
+        forceKioskDefaults();
         mn_804D6BC8.cooldown = 5;
         mn_804A04F0.prev_menu = mn_804A04F0.cur_menu;
         mn_804A04F0.cur_menu = MENU_KIND_TOURNAMENT;
