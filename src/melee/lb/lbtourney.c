@@ -22,7 +22,7 @@ static u8 game_count;
 static u8 pending_cmd; /* 0 = idle, else the relay_cmd in flight */
 static bool last_failed;
 static u32 timeout;
-static u32 end_hold; /* consecutive frames Z+Start has been held */
+static u32 end_hold; /* consecutive frames Z + D-up has been held */
 
 /* Score overlay, screen-space SIS canvas like the title-screen timestamp.
  * Recreated per CSS visit; the scene teardown frees the objects and
@@ -150,7 +150,7 @@ static void handleInputs(void)
 {
     int port;
     u32 dpad_pressed = 0; /* d-pad triggers on ports currently holding Z */
-    bool z_start_held = false;
+    bool z_up_held = false;
 
     for (port = 0; port < 4; port++) {
         const HSD_PadStatus* pad = &HSD_PadCopyStatus[port];
@@ -159,12 +159,16 @@ static void handleInputs(void)
         }
         dpad_pressed |= pad->trigger &
                         (PAD_BUTTON_LEFT | PAD_BUTTON_RIGHT | PAD_BUTTON_DOWN);
-        if (pad->button & PAD_BUTTON_START) {
-            z_start_held = true;
+        /* End set = Z + D-up held. D-up (not Start) because Start is Melee's
+         * native "advance to stage select" on the CSS, which fires before any
+         * hold can complete and leaves the screen. D-up has no native CSS use
+         * and is the one d-pad direction the score binds don't consume. */
+        if (pad->button & PAD_BUTTON_UP) {
+            z_up_held = true;
         }
     }
 
-    if (z_start_held) {
+    if (z_up_held) {
         if (++end_hold == LB_TOURNEY_END_HOLD_FRAMES) {
             int need = cur_set.best_of / 2 + 1;
             /* END_SET needs a decided score; ignore the hold otherwise. */
