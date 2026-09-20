@@ -18,6 +18,10 @@ void mnTourney_MainMenuThink(HSD_GObj* gobj);
 /* The MENU_KIND_TOURNAMENT think proc. */
 void mnTourney_Think(HSD_GObj* gobj);
 
+/* Arm the main-menu think to drop straight into the set list on its next run.
+ * Called from lbtourney when the CSS routes back here (END_SET, CSS-back). */
+void mnTourney_ArmAutoEnter(void);
+
 /* GS_MENU scene on_exit (the vanilla row had none): forgets per-scene SIS
  * objects, which the scene teardown itself frees. */
 void mnTourney_MenuSceneExit(void* exit_data);

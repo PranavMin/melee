@@ -44,7 +44,8 @@ enum mnTourney_State {
 };
 
 #define TM_TIMEOUT_FRAMES (5 * 60)
-#define TM_ROWS_VISIBLE 10
+#define TM_ROWS_VISIBLE 9
+#define TM_MARGIN_X 64.0f /* left margin, inside the menu border */
 /* Largest row count that fits the 4 KB poll buffer alongside the headers. */
 #define TM_MAX_SETS                                                          \
     ((int) ((sizeof(((struct lbRelayExi_PollBuf*) 0)->payload) -             \
@@ -62,6 +63,10 @@ static u32 tm_timeout;
 static u8 tm_retry_cmd; /* relay_cmd the error screen's A retries */
 static char tm_errmsg[MSG_LEN + 1];
 static bool tm_dirty;
+/* When the main-menu think should drop straight into the set list: armed at
+ * boot (static init) and whenever the CSS routes back here (END_SET, CSS-B).
+ * A manual B-back from the list leaves it clear, so the main menu stays up. */
+static bool tm_auto_enter = true;
 
 /* SIS overlay, screen-space like the title screen's build timestamp.
  * Recreated per GS_MENU visit; the scene teardown frees the objects and
@@ -168,7 +173,7 @@ static void drawSetLine(f32 y, bool cursor, const struct set_entry* set)
     copyStr(round, set->round, ROUND_LEN);
     copyStr(p1, set->p1_tag, TAG_LEN);
     copyStr(p2, set->p2_tag, TAG_LEN);
-    entry = HSD_SisLib_803A6B98(tm_text, 40.0f, y, "%s%s  %s VS %s  BO%d",
+    entry = HSD_SisLib_803A6B98(tm_text, TM_MARGIN_X, y, "%s%s  %s VS %s  BO%d",
                                 cursor ? "> " : "  ", round, p1, p2,
                                 set->best_of);
     HSD_SisLib_803A7548(tm_text, entry, 0.55f, 0.55f);
@@ -185,49 +190,50 @@ static void redraw(void)
     tm_text = HSD_SisLib_803A6754(0, tm_ctx);
     tm_text->default_kerning = 1;
 
-    line(40.0f, 40.0f, 0.9f, "TOURNAMENT");
+    line(TM_MARGIN_X, 50.0f, 0.72f, "TOURNAMENT");
 
     switch (tm_state) {
     case TM_LOADING:
-        line(40.0f, 120.0f, 0.7f, "LOADING...");
+        line(TM_MARGIN_X, 150.0f, 0.6f, "LOADING...");
         break;
     case TM_STARTING:
-        line(40.0f, 120.0f, 0.7f, "STARTING SET...");
+        line(TM_MARGIN_X, 150.0f, 0.6f, "STARTING SET...");
         break;
     case TM_LIST:
+        n = filteredSets(view);
         if (tm_filter == 0) {
-            line(40.0f, 80.0f, 0.55f, "FILTER: ALL   (L/R)");
+            line(TM_MARGIN_X, 98.0f, 0.5f, "FILTER: ALL    L-R");
         } else {
             buf[0] = tm_filter;
             buf[1] = '\0';
             HSD_SisLib_803A7548(
                 tm_text,
-                HSD_SisLib_803A6B98(tm_text, 40.0f, 80.0f,
-                                    "FILTER: %s   (L/R)", buf),
-                0.55f, 0.55f);
+                HSD_SisLib_803A6B98(tm_text, TM_MARGIN_X, 98.0f,
+                                    "FILTER: %s    L-R", buf),
+                0.5f, 0.5f);
         }
-        n = filteredSets(view);
         if (n == 0) {
-            line(40.0f, 120.0f, 0.7f, "NO SETS");
+            line(TM_MARGIN_X, 150.0f, 0.6f, "NO SETS - PRESS B TO REFRESH");
         }
-        y = 120.0f;
+        y = 134.0f;
         for (i = tm_top; i < n && i < tm_top + TM_ROWS_VISIBLE; i++) {
             drawSetLine(y, i == tm_sel, &tm_sets[view[i]]);
-            y += 26.0f;
+            y += 27.0f;
         }
-        line(40.0f, 420.0f, 0.5f, "A START   Z FRIENDLIES   B REFRESH");
+        line(TM_MARGIN_X, 404.0f, 0.44f,
+             "A START    Z FRIENDLIES    B REFRESH");
         break;
     case TM_CONFIRM: {
         const struct set_entry* set = &tm_sets[tm_chosen];
-        line(40.0f, 110.0f, 0.7f, "START THIS SET?");
+        line(TM_MARGIN_X, 120.0f, 0.62f, "START THIS SET?");
         drawSetLine(180.0f, false, set);
-        line(40.0f, 420.0f, 0.5f, "A YES   B BACK");
+        line(TM_MARGIN_X, 404.0f, 0.44f, "A YES    B BACK");
         break;
     }
     case TM_ERROR:
-        line(40.0f, 120.0f, 0.7f, "ERROR");
-        line(40.0f, 160.0f, 0.6f, tm_errmsg);
-        line(40.0f, 420.0f, 0.5f, "A RETRY  B BACK");
+        line(TM_MARGIN_X, 130.0f, 0.62f, "ERROR");
+        line(TM_MARGIN_X, 174.0f, 0.52f, tm_errmsg);
+        line(TM_MARGIN_X, 404.0f, 0.44f, "A RETRY    B BACK");
         break;
     }
 }
@@ -484,24 +490,43 @@ static void forceKioskDefaults(void)
     *gmMainLib_GetUnlockedCharactersBitmaskPtr() = 0xFFFF; /* all characters */
 }
 
-void mnTourney_MainMenuThink(HSD_GObj* gobj)
+/* Leave the main menu for the Tournament submenu (sound-test style): assert
+ * the kiosk rules/unlocks, swap cur_menu, spawn our think, free this think. */
+static void enterTournament(HSD_GObj* gobj)
 {
     HSD_GObjProc* proc;
 
-    /* Kiosk: this station IS the tournament tool, so the main menu is never
-     * shown: drop straight into the set list the moment it would appear, and
-     * (re-)assert the tournament rules/unlocks each pass. The set list is also
-     * where END_SET and CSS-back return to (via force_main_menu). */
-    if (mn_804D6BC8.cooldown == 0) {
-        forceKioskDefaults();
-        mn_804D6BC8.cooldown = 5;
-        mn_804A04F0.prev_menu = mn_804A04F0.cur_menu;
-        mn_804A04F0.cur_menu = MENU_KIND_TOURNAMENT;
-        mn_804A04F0.hovered_selection = 0;
-        proc = HSD_GObj_SetupProc(GObj_Create(0, 1, 0x80), mnTourney_Think, 0);
-        proc->flags_3 = HSD_GObj_804D783C;
-        HSD_GObjFree(gobj);
-        sendList();
+    forceKioskDefaults();
+    mn_804D6BC8.cooldown = 5;
+    mn_804A04F0.prev_menu = mn_804A04F0.cur_menu;
+    mn_804A04F0.cur_menu = MENU_KIND_TOURNAMENT;
+    mn_804A04F0.hovered_selection = 0;
+    proc = HSD_GObj_SetupProc(GObj_Create(0, 1, 0x80), mnTourney_Think, 0);
+    proc->flags_3 = HSD_GObj_804D783C;
+    HSD_GObjFree(gobj);
+    sendList();
+}
+
+void mnTourney_ArmAutoEnter(void)
+{
+    tm_auto_enter = true;
+}
+
+void mnTourney_MainMenuThink(HSD_GObj* gobj)
+{
+    /* Boot and every return from the CSS drop straight into the set list. */
+    if (tm_auto_enter) {
+        tm_auto_enter = false;
+        enterTournament(gobj);
+        return;
+    }
+    /* Otherwise the main menu is shown (the player backed out with B); Z
+     * re-enters the Tournament screen. (A visible main-menu row needs an
+     * MnMaAll asset edit -- deferred; Z is the interim entry.) */
+    if (mn_804D6BC8.cooldown == 0 && (gm_GetButtonsTriggered(4) & PAD_TRIGGER_Z))
+    {
+        sfxForward();
+        enterTournament(gobj);
         return;
     }
     mn_8022DB10(gobj);

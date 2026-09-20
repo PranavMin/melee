@@ -295,12 +295,13 @@ void gm_Scene_MemCard_OnFrame(void)
     case 0:
         temp_r29 = lb_8001CBBC();
         gmMainLib_8015FA34(temp_r29);
-        if (temp_r29 == 0 || temp_r29 == 2) {
-            enter_data.unk8.unk0 = 1;
-            enter_data.decision = 0x14;
-        } else {
-            enter_data.decision = 1;
-        }
+        /* Tournament kiosk: skip the "no memory card" prompt and always
+         * proceed (the decomp equivalent of the "Skip Memcard Prompt" Gekko
+         * code). The station forces its settings/unlocks live and does not use
+         * the card. Intentional matched-function edit (CLAUDE.md), boot/kiosk
+         * area - same documented exception rationale as bootOnLoad. */
+        enter_data.unk8.unk0 = 1;
+        enter_data.decision = 0x14;
         break;
     case 1:
         gm_801AF250();
