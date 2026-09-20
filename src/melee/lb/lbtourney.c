@@ -14,6 +14,18 @@
 
 #define LB_TOURNEY_TIMEOUT_FRAMES (5 * 60)
 #define LB_TOURNEY_END_HOLD_FRAMES 60
+/* C-stick deflection past this (raw, full throw ~80) counts as a direction.
+ * The C-stick, not the d-pad: it has no native CSS action and is reachable on
+ * standard controllers and box controllers alike (d-pad is not). */
+#define LB_TOURNEY_CSTICK_THRESH 56
+
+enum lbTourney_CDir {
+    CDIR_NONE = 0,
+    CDIR_LEFT,
+    CDIR_RIGHT,
+    CDIR_UP,
+    CDIR_DOWN,
+};
 
 static struct set_entry cur_set;
 static bool has_set = false;
@@ -22,7 +34,8 @@ static u8 game_count;
 static u8 pending_cmd; /* 0 = idle, else the relay_cmd in flight */
 static bool last_failed;
 static u32 timeout;
-static u32 end_hold; /* consecutive frames Z + D-up has been held */
+static u32 end_hold; /* consecutive frames Z + C-up has been held */
+static int prev_cdir; /* last frame's aggregate C-stick direction, for edges */
 
 /* Score overlay, screen-space SIS canvas like the title-screen timestamp.
  * Recreated per CSS visit; the scene teardown frees the objects and
@@ -39,6 +52,7 @@ void lbTourney_SetCurrent(const struct set_entry* set)
     pending_cmd = 0;
     last_failed = false;
     end_hold = 0;
+    prev_cdir = CDIR_NONE;
     has_set = true;
     css_dirty = true;
 }
@@ -67,26 +81,10 @@ static int winsFor(int slot)
     return n;
 }
 
-/* Slot 1 / slot 2 external character ids from the CSS selection state: the
- * first two human ports, ChKind_None when there is no such port. */
-static void readChars(u8* p1, u8* p2)
-{
-    int port;
-    int found = 0;
-    *p1 = ChKind_None;
-    *p2 = ChKind_None;
-    for (port = 0; port < GM_MAX_PLAYERS && found < 2; port++) {
-        const PlayerInitData* pl = &gmVsMelee_CssData.vs.start.players[port];
-        if (pl->slot_type == Gm_PKind_Human) {
-            if (found == 0) {
-                *p1 = (u8) pl->ckind;
-            } else {
-                *p2 = (u8) pl->ckind;
-            }
-            found++;
-        }
-    }
-}
+/* v1 reports winners only; per-game character data is deferred to the v2
+ * GAME_END hook (design.md R13). Reading characters from CSS port order was
+ * unreliable: port order need not match entrant order, and a character may
+ * not be locked in when the game is reported. So games carry no character. */
 
 static void sendReport(void)
 {
@@ -130,7 +128,8 @@ static void appendGame(int winner_slot)
     }
     game = &games[game_count];
     game->winner_slot = winner_slot;
-    readChars(&game->p1_char, &game->p2_char);
+    game->p1_char = 0; /* winners only in v1; relay ignores these (R13) */
+    game->p2_char = 0;
     game->_pad = 0;
     game_count++;
     sendReport();
@@ -146,29 +145,44 @@ static void undoGame(void)
     sendReport();
 }
 
+/* Cardinal C-stick direction for one pad, or CDIR_NONE when centred. The
+ * dominant axis wins so diagonals resolve cleanly. subStickY is +up. */
+static int cstickDir(const HSD_PadStatus* pad)
+{
+    s32 x = pad->subStickX;
+    s32 y = pad->subStickY;
+    s32 ax = x < 0 ? -x : x;
+    s32 ay = y < 0 ? -y : y;
+
+    if (ax < LB_TOURNEY_CSTICK_THRESH && ay < LB_TOURNEY_CSTICK_THRESH) {
+        return CDIR_NONE;
+    }
+    if (ax >= ay) {
+        return x < 0 ? CDIR_LEFT : CDIR_RIGHT;
+    }
+    return y > 0 ? CDIR_UP : CDIR_DOWN;
+}
+
 static void handleInputs(void)
 {
     int port;
-    u32 dpad_pressed = 0; /* d-pad triggers on ports currently holding Z */
-    bool z_up_held = false;
+    int cdir = CDIR_NONE; /* first non-centred C-stick among Z-held ports */
 
+    /* Any controller may drive the set: all four ports are read, and any port
+     * holding Z counts. (In Dolphin only port 1 is emulated by default.) */
     for (port = 0; port < 4; port++) {
         const HSD_PadStatus* pad = &HSD_PadCopyStatus[port];
         if (!(pad->button & PAD_TRIGGER_Z)) {
             continue;
         }
-        dpad_pressed |= pad->trigger &
-                        (PAD_BUTTON_LEFT | PAD_BUTTON_RIGHT | PAD_BUTTON_DOWN);
-        /* End set = Z + D-up held. D-up (not Start) because Start is Melee's
-         * native "advance to stage select" on the CSS, which fires before any
-         * hold can complete and leaves the screen. D-up has no native CSS use
-         * and is the one d-pad direction the score binds don't consume. */
-        if (pad->button & PAD_BUTTON_UP) {
-            z_up_held = true;
+        if (cdir == CDIR_NONE) {
+            cdir = cstickDir(pad);
         }
     }
 
-    if (z_up_held) {
+    /* End set = Z + C-up held ~1 s (sustained, not a flick). C-stick, not
+     * Start: Start is Melee's native "advance to stage select" on the CSS. */
+    if (cdir == CDIR_UP) {
         if (++end_hold == LB_TOURNEY_END_HOLD_FRAMES) {
             int need = cur_set.best_of / 2 + 1;
             /* END_SET needs a decided score; ignore the hold otherwise. */
@@ -176,17 +190,22 @@ static void handleInputs(void)
                 sendEndSet();
             }
         }
-        return; /* don't also count a d-pad press in the same chord */
+        prev_cdir = cdir;
+        return;
     }
     end_hold = 0;
 
-    if (dpad_pressed & PAD_BUTTON_LEFT) {
-        appendGame(1);
-    } else if (dpad_pressed & PAD_BUTTON_RIGHT) {
-        appendGame(2);
-    } else if (dpad_pressed & PAD_BUTTON_DOWN) {
-        undoGame();
+    /* Score / undo fire once per flick: on the edge into a new direction. */
+    if (cdir != prev_cdir) {
+        if (cdir == CDIR_LEFT) {
+            appendGame(1);
+        } else if (cdir == CDIR_RIGHT) {
+            appendGame(2);
+        } else if (cdir == CDIR_DOWN) {
+            undoGame();
+        }
     }
+    prev_cdir = cdir;
 }
 
 static void pollRelay(void)
