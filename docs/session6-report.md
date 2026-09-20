@@ -25,7 +25,9 @@ these were ours to pick (session 5 finding):
 
 - **Address: channel 1, device 0, frequency 4 (16 MHz)** — Slot B, the same
   device Slippi Dolphin exposes, so the forwarder can extend the Slippi EXI
-  device class; our command bytes (208/209) sit clear of Slippi's 0x35–0x3D.
+  device class. (Correction, later on 2026-09-19: the command bytes were
+  renumbered to 0xF0/0xF1 — the original 0xD0/0xD1 collided with Slippi's
+  space, which extends to 0xE5, not 0x3D. protocol.yaml is authoritative.)
 - **EXI_RELAY_REQ**: 4-byte immediate command word, `EXI_RELAY_REQ << 24`,
   then `relay_hdr` + payload written with EXIImmEx (arbitrary length, 8–36
   bytes), all inside one select window.

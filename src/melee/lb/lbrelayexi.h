@@ -12,7 +12,8 @@
  * chosen here. */
 
 /* Slot B, like Slippi's own device; the relay device shares it (the
- * EXI_RELAY_* command bytes sit clear of Slippi's 0x35-0x3D range). */
+ * EXI_RELAY_* command bytes sit clear of Slippi's EXI command space,
+ * which extends to 0xE5). */
 #define LB_RELAY_EXI_CHAN 1
 #define LB_RELAY_EXI_DEV 0
 #define LB_RELAY_EXI_FREQ 4 /* 16 MHz */
