@@ -51,12 +51,14 @@ void bootOnLoad(GameModeState* scene)
     struct loadData* scene_data = gm_GetGameModeStateEnterData(scene);
     scene_data->x4 = 0;
     scene_data->x0 = 0;
-    if (gmMainLib_8046B0F0.skip_intro == true) {
-        scene_data->mode_id = GM_TITLE;
-    } else {
-        gm_801BF708(0);
-        scene_data->mode_id = GM_OPENING_MV;
-    }
+    /* Tournament kiosk: skip the opening movie and the title screen, booting
+     * straight to the menu - whose main-menu think (mnTourney_MainMenuThink)
+     * auto-enters the set list. This is the well-known "boot to CSS" Gekko
+     * pattern (see bootOnLeave's comment), aimed at GM_MENU instead of GM_VS.
+     * NOTE: intentional edit to a matched function (CLAUDE.md normally forbids
+     * this) - there is no data-table lever for the boot target, and the venue
+     * wants the station to power on into the set list. */
+    scene_data->mode_id = GM_MENU;
 }
 
 void bootOnLeave(GameModeState* data)

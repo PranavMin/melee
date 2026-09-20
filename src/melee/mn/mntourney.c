@@ -9,6 +9,7 @@
 #include "types.h"
 #include <dolphin/pad.h>
 #include <melee/gm/forward.h>
+#include <melee/gm/gm_1601.h>
 #include <melee/gm/gm_1A36.h>
 #include <melee/gm/gmmain_lib.h>
 #include <melee/lb/lbrelayexi.h>
@@ -214,7 +215,7 @@ static void redraw(void)
             drawSetLine(y, i == tm_sel, &tm_sets[view[i]]);
             y += 26.0f;
         }
-        line(40.0f, 420.0f, 0.5f, "A START  B BACK");
+        line(40.0f, 420.0f, 0.5f, "A START   Z FRIENDLIES   B REFRESH");
         break;
     case TM_CONFIRM: {
         const struct set_entry* set = &tm_sets[tm_chosen];
@@ -380,6 +381,15 @@ void mnTourney_Think(HSD_GObj* gobj)
         break;
     case TM_LIST:
         n = filteredSets(view);
+        if (gm_GetButtonsTriggered(4) & PAD_TRIGGER_Z) {
+            /* Friendlies: enter the CSS with no set active, so nothing is
+             * reported. B on the CSS still returns here (kiosk routing). */
+            sfxForward();
+            lbTourney_ClearCurrent();
+            tm_state = TM_OFF;
+            mn_80229860(GM_VS);
+            return;
+        }
         if (buttons & MenuInput_Back) {
             sfxBack();
             exitToMainMenu();
@@ -466,10 +476,11 @@ static void forceKioskDefaults(void)
     rules->stock_count = 4;
     rules->stock_time_limit = 8; /* 8:00 in Stock mode (reads stock_time_limit) */
 
-    prefs->item_freq = 0;        /* items off (freq 0 == None) */
+    prefs->item_freq = 0xFF;     /* -1 (read as s8) = items OFF; 0 is lowest ON */
     prefs->item_mask = 0;
-    prefs->stage_mask = 0xFFFFFFFF;
+    prefs->stage_mask = 0xFFFFFFFF; /* all stages legal on the toggle side */
 
+    gm_8016468C();               /* unlock all stages (the real unlock mask) */
     *gmMainLib_GetUnlockedCharactersBitmaskPtr() = 0xFFFF; /* all characters */
 }
 

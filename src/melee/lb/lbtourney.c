@@ -303,11 +303,12 @@ static void redraw(void)
 
 void lbTourney_CSSFrame(void)
 {
+    /* Kiosk: every CSS visit comes from our menu (a tournament set or
+     * friendlies), so any B-back returns to the set list, not the VS menu.
+     * Keep force_main_menu set so when vanilla's B-back leaves the CSS,
+     * GM_MENU's onEnter lands on our Tournament menu. */
+    gmMainLib_GetGameRules()->force_main_menu = 1;
     if (has_set) {
-        /* Kiosk: any exit from the CSS returns to the set list, not the VS
-         * menu. Keep force_main_menu set so when vanilla's B-back leaves the
-         * CSS, GM_MENU's onEnter lands on our Tournament menu. */
-        gmMainLib_GetGameRules()->force_main_menu = 1;
         if (css_ctx < 0) {
             css_ctx = HSD_SisLib_803A611C(0, NULL, 9, 0xD, 0, 0xE, 0, 0x13);
             css_dirty = true;
