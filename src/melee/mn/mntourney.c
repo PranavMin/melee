@@ -11,6 +11,7 @@
 #include <melee/gm/forward.h>
 #include <melee/gm/gm_1A36.h>
 #include <melee/lb/lbrelayexi.h>
+#include <melee/lb/lbtourney.h>
 #include <melee/mn/mnmain.h>
 #include <sysdolphin/baselib/gobj.h>
 #include <sysdolphin/baselib/gobjplink.h>
@@ -339,8 +340,9 @@ static void pollRelay(void)
     if (tm_retry_cmd == CMD_LIST_SETS) {
         acceptList(r);
     } else {
-        /* START_SET accepted: into the CSS. The scene teardown frees this
-         * think and the overlay. */
+        /* START_SET accepted: hand the set to lbtourney and enter the CSS.
+         * The scene teardown frees this think and the overlay. */
+        lbTourney_SetCurrent(&tm_sets[tm_chosen]);
         tm_state = TM_OFF;
         mn_80229860(GM_VS);
     }

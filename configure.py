@@ -613,6 +613,7 @@ config.libs = [
             # Tournament reporter (new TUs; nothing to match, "Matching" only
             # marks them completed so the non-matching build links them)
             Object(Matching, "melee/lb/lbrelayexi.c"),
+            Object(Matching, "melee/lb/lbtourney.c"),
         ],
     ),
     MeleeLib(

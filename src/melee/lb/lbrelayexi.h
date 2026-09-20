@@ -52,7 +52,7 @@ bool lbRelayExi_Request(u8 cmd, const void* payload, u16 len);
 /* Poll the in-flight request. Returns the device state (enum exi_poll_state)
  * or -1 on an EXI transport failure. RELAY_DONE / RELAY_ERROR / -1 clear the
  * in-flight flag; any other value (including junk from an absent device)
- * means keep polling — the caller owns the timeout. Returns RELAY_IDLE
+ * means keep polling - the caller owns the timeout. Returns RELAY_IDLE
  * without touching the bus when nothing is in flight. */
 s32 lbRelayExi_Poll(void);
 

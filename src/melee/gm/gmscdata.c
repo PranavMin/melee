@@ -44,6 +44,7 @@
 #include "gmvsmode.h"
 #include "types.h"
 #include <melee/if/ifprize.h>
+#include <melee/lb/lbtourney.h>
 #include <melee/mn/mncharsel.h>
 #include <melee/mn/mnmain.h>
 #include <melee/mn/mnstagesel.h>
@@ -117,9 +118,11 @@ static GameScene scenes[] = {
     },
     {
         GS_CSS,
-        mnCharSel_Scene_OnFrame,
+        /* Tournament reporter: wrappers that run the tournament score
+         * keybinds/overlay and then the vanilla mnCharSel handlers. */
+        lbTourney_CSSFrame,
         mnCharSel_Scene_OnEnter,
-        mnCharSel_Scene_OnExit,
+        lbTourney_CSSExit,
         NULL,
     },
     {
