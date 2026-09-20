@@ -360,6 +360,7 @@ cflags_trk = [
 includes_base = [
     "src",
     "src/MSL",
+    "include",  # relay_proto.h, copied from ../tournament-reporter/generated/
     "libs/dolphin/include",
     f"build/{config.version}/include",
 ]
@@ -609,6 +610,9 @@ config.libs = [
             Object(Matching, "melee/lb/lbrefract.c"),
             Object(Matching, "melee/lb/lbtrigf.c"),
             Object(Matching, "melee/lb/lbaudio_ax.c"),
+            # Tournament reporter (new TUs; nothing to match, "Matching" only
+            # marks them completed so the non-matching build links them)
+            Object(Matching, "melee/lb/lbrelayexi.c"),
         ],
     ),
     MeleeLib(
