@@ -2099,6 +2099,26 @@ if args.mode == "configure":
     # Write build.ninja and objdiff.json
     generate_build(config)
 
+    # --- Tournament Reporter: re-address UCF Gecko codes after the DOL links ---
+    # (design.md R12 / docs/ucf-readdressing.md) After main.elf is linked, run
+    # tools/gen_ucf_codes.py to regenerate build/<ver>/ucf_codes.gecko.txt with
+    # THIS build's shifted addresses. Appended here rather than in the
+    # dtk-generated tools/project.py (which stays untouched); this runs on every
+    # reconfigure, and ninja `default` statements are additive so a plain
+    # `ninja` builds the codes right after the DOL.
+    _ver = args.version
+    _elf = f"{args.build_dir.as_posix()}/{_ver}/main.elf"
+    _ucf_out = f"{args.build_dir.as_posix()}/{_ver}/ucf_codes.gecko.txt"
+    with open("build.ninja", "a", encoding="utf-8") as _f:
+        _f.write(
+            "\n# Tournament Reporter: re-address UCF Gecko codes (R12)\n"
+            "rule gen_ucf\n"
+            "  command = $python tools/gen_ucf_codes.py --elf $in --out $out\n"
+            "  description = GEN_UCF $out\n"
+            f"build {_ucf_out}: gen_ucf {_elf} | tools/gen_ucf_codes.py\n"
+            f"default {_ucf_out}\n"
+        )
+
     config.validate()
     objects = config.objects()
     build_config = load_build_config(config, config.out_path() / "config.json")
