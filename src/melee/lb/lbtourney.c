@@ -14,6 +14,7 @@
 
 #define LB_TOURNEY_TIMEOUT_FRAMES (5 * 60)
 #define LB_TOURNEY_END_HOLD_FRAMES 60
+#define LB_TOURNEY_SENT_FLASH_FRAMES 75 /* ~1.25 s of "SENT" after a report */
 /* C-stick deflection past this (raw, full throw ~80) counts as a direction.
  * The C-stick, not the d-pad: it has no native CSS action and is reachable on
  * standard controllers and box controllers alike (d-pad is not). */
@@ -36,6 +37,7 @@ static bool last_failed;
 static u32 timeout;
 static u32 end_hold; /* consecutive frames Z + C-up has been held */
 static int prev_cdir; /* last frame's aggregate C-stick direction, for edges */
+static u32 sent_flash; /* frames left showing the "SENT" confirmation */
 
 /* Score overlay, screen-space SIS canvas like the title-screen timestamp.
  * Recreated per CSS visit; the scene teardown frees the objects and
@@ -53,6 +55,7 @@ void lbTourney_SetCurrent(const struct set_entry* set)
     last_failed = false;
     end_hold = 0;
     prev_cdir = CDIR_NONE;
+    sent_flash = 0;
     has_set = true;
     css_dirty = true;
 }
@@ -235,6 +238,8 @@ static void pollRelay(void)
         if (pending_cmd == CMD_END_SET) {
             /* Set reported and closed; the overlay disappears. */
             has_set = false;
+        } else if (pending_cmd == CMD_REPORT_SCORE) {
+            sent_flash = LB_TOURNEY_SENT_FLASH_FRAMES;
         }
         last_failed = false;
     } else {
@@ -249,6 +254,7 @@ static void redraw(void)
     char p1[TAG_LEN + 1];
     char p2[TAG_LEN + 1];
     int entry;
+    const char* status;
 
     if (css_text != NULL) {
         HSD_SisLib_803A5CC4(css_text);
@@ -264,12 +270,26 @@ static void redraw(void)
 
     css_text = HSD_SisLib_803A6754(0, css_ctx);
     css_text->default_kerning = 1;
-    entry = HSD_SisLib_803A6B98(css_text, 24.0f, 24.0f, "%s %d - %d %s%s", p1,
-                                winsFor(1), winsFor(2), p2,
-                                pending_cmd != 0 ? " !"
-                                : last_failed    ? " X"
-                                                 : "");
-    HSD_SisLib_803A7548(css_text, entry, 0.55f, 0.55f);
+
+    /* Score, prominent and clear of the top-left logo. */
+    entry = HSD_SisLib_803A6B98(css_text, 200.0f, 34.0f, "%s  %d - %d  %s", p1,
+                                winsFor(1), winsFor(2), p2);
+    HSD_SisLib_803A7548(css_text, entry, 0.7f, 0.7f);
+
+    /* Status line under the score: in-flight, just-sent, or failed. */
+    if (pending_cmd != 0) {
+        status = "SENDING...";
+    } else if (last_failed) {
+        status = "SEND FAILED";
+    } else if (sent_flash > 0) {
+        status = "SCORE SENT";
+    } else {
+        status = NULL;
+    }
+    if (status != NULL) {
+        entry = HSD_SisLib_803A6B98(css_text, 200.0f, 64.0f, "%s", status);
+        HSD_SisLib_803A7548(css_text, entry, 0.6f, 0.6f);
+    }
 }
 
 void lbTourney_CSSFrame(void)
@@ -285,6 +305,10 @@ void lbTourney_CSSFrame(void)
             pollRelay();
         } else {
             handleInputs();
+        }
+        if (sent_flash > 0) {
+            sent_flash--;
+            css_dirty = true; /* keep "SCORE SENT" up, then clear it */
         }
         if (css_dirty) {
             css_dirty = false;

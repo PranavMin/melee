@@ -217,9 +217,9 @@ static void redraw(void)
         break;
     case TM_CONFIRM: {
         const struct set_entry* set = &tm_sets[tm_chosen];
-        drawSetLine(120.0f, false, set);
-        line(40.0f, 180.0f, 0.7f, "START?");
-        line(40.0f, 420.0f, 0.5f, "A YES  B BACK");
+        line(40.0f, 110.0f, 0.7f, "START THIS SET?");
+        drawSetLine(180.0f, false, set);
+        line(40.0f, 420.0f, 0.5f, "A YES   B BACK");
         break;
     }
     case TM_ERROR:
