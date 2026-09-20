@@ -16,6 +16,14 @@ codes every build (addresses shift whenever our code changes) and writes
 > TU `ucf.c` + `ftData_MotionStateList` wraps). That investigation remains the
 > reference for *what UCF does*; this document is the shipped mechanism.
 
+> **The same pipeline now also re-addresses the venue "Neutral Spawns" code.**
+> `tools/gen_ucf_codes.py` was generalized to emit both codes into the same
+> output file (`build/GALE01/ucf_codes.gecko.txt`), each as its own Dolphin
+> `$<name>` block. See `docs/venue-codes-readdressing.md` for the decoded Neutral
+> Spawns hook, its address map, and the one field there (three `.sbss` loads)
+> that needed an r2→r13 base rebase because the shifted `_SDA2_BASE_` can no
+> longer reach them.
+
 ---
 
 ## 1. The four decoded hooks
