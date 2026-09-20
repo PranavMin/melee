@@ -1376,6 +1376,8 @@ config.libs = [
             Object(Matching, "melee/mn/mngallery.c"),
             Object(Matching, "melee/mn/mnstagesel.c"),
             Object(Matching, "melee/mn/mncharsel.c"),
+            # Tournament reporter (new TU, nothing to match)
+            Object(Matching, "melee/mn/mntourney.c"),
         ],
     ),
     MeleeLib(

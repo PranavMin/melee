@@ -21,6 +21,7 @@
 #include "mnsnap.h"
 #include "mnsound.h"
 #include "mnsoundtest.h"
+#include "mntourney.h"
 #include "mnvibration.h"
 #include "types.h"
 #include <dolphin/pad.h>
@@ -375,13 +376,15 @@ static GXColor mn_804D4B60 = { 0x9B, 0x41, 0xFF, 0xFF };
 
 GXColor mn_804D4B64 = { 0xFF, 0xC8, 0x00, 0xFF };
 
-MenuKindData mn_803EB6B0[0x22] = {
+MenuKindData mn_803EB6B0[0x24] = {
     {
         mn_803EB3FC,
         0,
         mn_803EB660,
         0x05,
-        mn_8022DB10,
+        /* Tournament reporter: wraps mn_8022DB10, entering the Tournament
+         * submenu on a Z press. */
+        mnTourney_MainMenuThink,
     },
     {
         mn_803EB444,
@@ -613,6 +616,22 @@ MenuKindData mn_803EB6B0[0x22] = {
         NULL,
         0x01,
         NULL,
+    },
+    /* MENU_KIND_34 filler so the Tournament row lands at its enum value. */
+    {
+        NULL,
+        0,
+        NULL,
+        0x01,
+        NULL,
+    },
+    /* MENU_KIND_TOURNAMENT (tournament reporter, design 6.1). */
+    {
+        NULL,
+        0,
+        mnTourney_DescIndices,
+        0x01,
+        mnTourney_Think,
     },
 };
 

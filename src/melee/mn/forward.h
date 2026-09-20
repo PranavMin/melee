@@ -117,6 +117,7 @@ typedef enum MenuKind {
     /* +20 */ MENU_KIND_RECORDS_MISC = 32,
     /* +21 */ MENU_KIND_MULTI_VS = 33,
     /* +22 */ MENU_KIND_34 = 34,
+    /* +23 */ MENU_KIND_TOURNAMENT = 35, ///< tournament reporter (design 6.1)
 } MenuKind;
 
 typedef enum MenuState {

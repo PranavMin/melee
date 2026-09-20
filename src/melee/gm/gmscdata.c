@@ -47,6 +47,7 @@
 #include <melee/mn/mncharsel.h>
 #include <melee/mn/mnmain.h>
 #include <melee/mn/mnstagesel.h>
+#include <melee/mn/mntourney.h>
 #include <melee/ty/toy.h>
 #include <melee/ty/tydisplay.h>
 #include <melee/ty/tyfigupon.h>
@@ -74,7 +75,9 @@ static GameScene scenes[] = {
         GS_MENU,
         mnMain_Scene_OnFrame,
         mnMain_Scene_OnEnter,
-        NULL,
+        /* Tournament reporter: the vanilla row has no on_exit; this one
+         * only forgets the Tournament menu's per-scene SIS objects. */
+        mnTourney_MenuSceneExit,
         NULL,
     },
     {
