@@ -514,8 +514,12 @@ void mnTourney_ArmAutoEnter(void)
 
 void mnTourney_MainMenuThink(HSD_GObj* gobj)
 {
-    /* Boot and every return from the CSS drop straight into the set list. */
-    if (tm_auto_enter) {
+    /* Boot and every return from the CSS drop straight into the set list --
+     * but only once the menu is ready (cooldown hits 0). Entering on the very
+     * first frame renders half-initialised menu graphics and crashes in the
+     * GX texture path; waiting for cooldown==0 is the safe point (a brief
+     * main-menu flash; a zero-frame version needs the panel GObj hidden). */
+    if (tm_auto_enter && mn_804D6BC8.cooldown == 0) {
         tm_auto_enter = false;
         enterTournament(gobj);
         return;
