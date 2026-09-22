@@ -51,7 +51,12 @@ GameRules gmMainLib_DefaultGameRules = {
 };
 
 struct GamePrefs gmMainLib_DefaultGamePrefs = {
-    2, U64_MAX, { true, true, true, true }, 0, true, LANG_JP, U32_MAX,
+    /* sound_balance = 100: SOUNDS<->MUSIC slider all the way to sounds = music
+     * off (venue default; the venue's music-off Gecko writes 0x64 here). Set in
+     * the default template so it lands in live prefs at the init copy
+     * (gmmain_lib.c ~1192), before audio starts -- forcing it live at menu-enter
+     * instead crashes (mid-transition audio re-mix; see mntourney forceKioskDefaults). */
+    2, U64_MAX, { true, true, true, true }, 100, true, LANG_JP, U32_MAX,
 };
 
 GXRenderModeObj gmMainLib_803D4A80 = {

@@ -45,6 +45,15 @@ Legend: each item is something *you* verify by eye on the running build.
 - [ ] **All characters unlocked** on the CSS.
 - [ ] **All stages unlocked** on stage select. *Real unlock is `gm_8016468C()`, not
       `stage_mask` (that's only the per-match legal-stage toggle). Bug fixed; verify.*
+- [ ] **Random-stage set = the 6 singles legal stages** (BF, FD, FoD, YS, DL, PS).
+      *`stage_mask = 0xE70000B0` (Magus "Singles Stages"), forced live in `forceKioskDefaults`.*
+- [ ] **Music off + mono.** *Set at **boot**, NOT live at menu-enter. Music-off =
+      `gmMainLib_DefaultGamePrefs.sound_balance = 100` (copied into live prefs at the boot
+      init-copy). Mono = `OSSetSoundMode(0)` at boot. **Do NOT force `sound_balance` live in
+      `forceKioskDefaults`** — writing it at menu-enter re-mixes the BGM mid scene-transition
+      and crashes in the GX texture path (`__GXSetSUTexRegs`), deterministically, every boot
+      (bisected v12-v15, 2026-09-21). Same caution for any audio-mixing setting: default
+      template / boot only.*
 
 ## 3. Text & layout (SIS menu text)
 
@@ -55,16 +64,38 @@ Legend: each item is something *you* verify by eye on the running build.
       changed to `L-R`). Use hyphens, never parens/slashes/em-dashes in on-screen strings.*
 - [ ] Set-list rows read correctly: `> ROUND  NAME VS NAME  BOx` with proper spacing.
 
-## 4. Gecko codes (UCF + Neutral Spawns)
+## 4. Venue mods (UCF + Neutral Spawns) — native, NOT gecko
 
-- [ ] Game **does not crash at boot** from the codes. *If it crashes only with codes
-      enabled, the `.ini` addresses don't match this DOL — regenerate (section 0).*
-- [ ] **UCF feels right**: dashback, shield-drop, and wiggle-out-of-tumble behave like
-      UCF 0.8 (not vanilla). See `ucf-investigation.md`.
-- [ ] **Neutral spawns** present on stages.
-- [ ] Only the **two re-addressed codes** are enabled in `[Gecko_Enabled]` — the
-      vanilla-1.02-addressed codes (Required/Recommended) stay disabled or they crash the
-      shifted DOL.
+- [ ] **Gecko codes are OFF at the ISO level too** — right-click the ISO → Properties →
+      Gecko Codes tab: nothing checked. *This per-ISO state overrides the global setting
+      and was the cause of a `last_PC = 80001f18` boot crash on 2026-09-21 even with the
+      global flag False. Our Ishiiruka is `Binary/x64/Slippi Dolphin.exe` (launched via
+      Slippi Launcher) — it has no "Enable Cheats" checkbox in Config → General, so the
+      ISO Properties dialog and the ini are the only two levers.*
+- [ ] **`EnableCheats` is OFF in Ishiiruka's `User/Config/Dolphin.ini`.** *Cheats-on makes
+      Slippi Ishiiruka install its own vanilla-addressed `Sys/bootloader.gct` into the
+      codelist (GeckoCode.cpp:171-191), patching vanilla 1.02 addresses into our shifted
+      DOL — the R11 crash, every boot. Debugger callstack 2026-09-21: gecko handler
+      `0x80001f18` → heap garbage `0x81335ae0`, `HSD_ObjAllocAddFree` reading a trashed
+      free-list pointer, all during `mnMain_Scene_OnEnter`. Gecko codes are therefore
+      unusable in Ishiiruka for this build: every venue mod is compiled into the DOL.*
+- [ ] **UCF feels right**: dashback, shield-drop, wiggle-out-of-tumble behave like UCF 0.8.
+      *Native port in `lbucf.c` per `ucf-investigation.md` (data-table IASA wrappers in
+      `ftData_MotionStateList`, installed once from `lbTourney_CSSFrame`, no matched edits).
+      Feel-tested green 2026-09-21. Known gap: `ftCo_Wait_IASA`/`ftCo_DamageFall_IASA` are also
+      called directly from a few attack/damage states, bypassing the table wrap.*
+- [ ] **Neutral spawns** present on stages: on Battlefield a 2P match starts on the **left
+      and right side platforms** (`±38.8, 35.2`), not centre/top. *Native port in
+      `lbneutralspawn.c`, called from `fn_8016E2BC` (gmvs.c) at the asm's exact insertion
+      point (`+0x254`, after `getSpawnPoint`, before the fighter is spawned from it) — a
+      documented matched-function edit. Do NOT try a post-spawn data hook: `rules.on_match_start`
+      fires after vanilla has already spawned every fighter, so a slot-pose write
+      (`Player_80032768`) or even a live `cur_pos`/`coll_data` teleport there does nothing
+      visible (v18/v19 — fighters stayed at vanilla `spawn_point` 2/3). FoD `±41.25` on the
+      side platforms is the venue's real value (cross-checked against the ini asm), not a
+      bug, even though it reads "further out" than vanilla FoD.*
+- [ ] The `[Gecko_Enabled]` entries in `GALE01r2.ini` are inert (cheats off); the
+      re-addressed UCF/Neutral blocks there are kept as reference only.
 
 ## 5. Relay & start.gg (before the game can list anything)
 

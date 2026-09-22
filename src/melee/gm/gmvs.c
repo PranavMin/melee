@@ -21,6 +21,7 @@
 #include <melee/ft/ftlib.h>
 #include <melee/gr/ground.h>
 #include <melee/gr/grpstadium.h>
+#include <melee/lb/lbneutralspawn.h>
 #include <melee/gr/stage.h>
 #include <melee/if/if_2F6E.h>
 #include <melee/if/ifall.h>
@@ -1935,6 +1936,17 @@ void fn_8016E2BC(void)
         for (i = 0; i < 6; i++) {
             if (Player_GetPlayerSlotType(i) != Gm_PKind_NA) {
                 getSpawnPoint(i, &sp18);
+                /* Tournament kiosk: venue Neutral Spawns. NOTE: intentional
+                 * edit to a matched function (CLAUDE.md normally forbids
+                 * this; the other exception is bootOnLoad). This is the exact
+                 * spot the venue's NeutralSpawn.asm C2 hook inserts
+                 * (fn_8016E2BC+0x254): the spawn coordinate is swapped after
+                 * it is read and before it is stored and the fighter is
+                 * spawned from it. A post-spawn data hook cannot reproduce
+                 * that - the fighter is already born at vanilla's coordinate
+                 * by then (v18/v19) - so this is the faithful port. */
+                lbNeutralSpawn_Override(i, controller.start.stkind,
+                                        controller.start.is_teams, &sp18);
                 tmp = &controller;
                 if (Player_GetFacingDirection(i) == 0.0F) {
                     if (Stage_80224DC8(controller.start.stkind) != 0) {

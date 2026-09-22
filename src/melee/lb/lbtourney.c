@@ -9,7 +9,9 @@
 #include <melee/gm/gmmain_lib.h>
 #include <melee/gm/gmscene.h>
 #include <melee/gm/gmvsmelee.h>
+#include <melee/gm/types.h>
 #include <melee/lb/lbrelayexi.h>
+#include <melee/lb/lbucf.h>
 #include <melee/mn/mntourney.h>
 #include <melee/mn/mncharsel.h>
 #include <melee/mn/types.h>
@@ -311,6 +313,11 @@ void lbTourney_CSSFrame(void)
      * GM_MENU's onEnter lands on our Tournament menu. */
     gmMainLib_GetGameRules()->force_main_menu = 1;
     mnTourney_ArmAutoEnter();
+    /* Venue UCF 0.8: one-time swap of IASA pointers in ftData_MotionStateList
+     * (guarded, idempotent). Every kiosk match is entered from this CSS, and
+     * the table is consulted every match frame, so installing here is in time
+     * for all of them. No matched-function edit. */
+    lbUcf_Install();
     if (has_set) {
         if (css_ctx < 0) {
             css_ctx = HSD_SisLib_803A611C(0, NULL, 9, 0xD, 0, 0xE, 0, 0x13);

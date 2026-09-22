@@ -7,6 +7,7 @@
 #include "forward.h"
 #include "inlines.h"
 #include "types.h"
+#include <dolphin/os.h>
 #include <dolphin/pad.h>
 #include <melee/gm/forward.h>
 #include <melee/gm/gm_1601.h>
@@ -67,6 +68,22 @@ static bool tm_dirty;
  * boot (static init) and whenever the CSS routes back here (END_SET, CSS-B).
  * A manual B-back from the list leaves it clear, so the main menu stays up. */
 static bool tm_auto_enter = true;
+
+/* Frames the main menu must run (rendering, so its textures become resident)
+ * before an armed auto-enter fires. cooldown==0 alone proved too early on a
+ * cold boot -- it still tore the menu down mid-texture-load and crashed in
+ * __GXSetSUTexRegs (v9). A manual Z-enter, which happens seconds later, has
+ * always been safe; this warm-up reproduces that safe timing. Reset whenever
+ * auto-enter is re-armed (a CSS return re-initialises the menu scene). */
+#define TM_BOOT_WARMUP_FRAMES 45
+static int tm_boot_frames = 0;
+
+/* Venue audio defaults (mono + music-off) are asserted once, the first time the
+ * set list is up: a stable, fully-rendered menu frame (so no GX-transition
+ * crash), AFTER the memcard save-load (so it isn't overwritten), and before any
+ * match. sound_balance = 100 puts the SOUNDS<->MUSIC slider at all-sounds (music
+ * off); OSSetSoundMode(0) forces mono. */
+static bool tm_audio_set = false;
 
 /* SIS overlay, screen-space like the title screen's build timestamp.
  * Recreated per GS_MENU visit; the scene teardown frees the objects and
@@ -173,9 +190,10 @@ static void drawSetLine(f32 y, bool cursor, const struct set_entry* set)
     copyStr(round, set->round, ROUND_LEN);
     copyStr(p1, set->p1_tag, TAG_LEN);
     copyStr(p2, set->p2_tag, TAG_LEN);
-    entry = HSD_SisLib_803A6B98(tm_text, TM_MARGIN_X, y, "%s%s  %s VS %s  BO%d",
-                                cursor ? "> " : "  ", round, p1, p2,
-                                set->best_of);
+    /* Player names first (the thing players scan for); round/phase trails. */
+    entry = HSD_SisLib_803A6B98(tm_text, TM_MARGIN_X, y, "%s%s VS %s  BO%d  %s",
+                                cursor ? "> " : "  ", p1, p2, set->best_of,
+                                round);
     HSD_SisLib_803A7548(tm_text, entry, 0.55f, 0.55f);
 }
 
@@ -190,7 +208,8 @@ static void redraw(void)
     tm_text = HSD_SisLib_803A6754(0, tm_ctx);
     tm_text->default_kerning = 1;
 
-    line(TM_MARGIN_X, 50.0f, 0.72f, "TOURNAMENT");
+    /* Title centered: "TOURNAMENT" ~180px wide at 0.72; x = (640-180)/2. */
+    line(230.0f, 50.0f, 0.72f, "TOURNAMENT");
 
     switch (tm_state) {
     case TM_LOADING:
@@ -213,27 +232,28 @@ static void redraw(void)
                 0.5f, 0.5f);
         }
         if (n == 0) {
-            line(TM_MARGIN_X, 150.0f, 0.6f, "NO SETS - PRESS B TO REFRESH");
+            line(TM_MARGIN_X, 150.0f, 0.6f, "NO SETS - PRESS Y TO REFRESH");
         }
         y = 134.0f;
         for (i = tm_top; i < n && i < tm_top + TM_ROWS_VISIBLE; i++) {
             drawSetLine(y, i == tm_sel, &tm_sets[view[i]]);
             y += 27.0f;
         }
-        line(TM_MARGIN_X, 404.0f, 0.44f,
-             "A START    Z FRIENDLIES    B REFRESH");
+        /* Hint bar centered, scaled down (0.36): ~340px wide; x = (640-340)/2. */
+        line(150.0f, 394.0f, 0.36f,
+             "A START   Z FRIENDLIES   Y REFRESH   B MENU");
         break;
     case TM_CONFIRM: {
         const struct set_entry* set = &tm_sets[tm_chosen];
         line(TM_MARGIN_X, 120.0f, 0.62f, "START THIS SET?");
         drawSetLine(180.0f, false, set);
-        line(TM_MARGIN_X, 404.0f, 0.44f, "A YES    B BACK");
+        line(262.0f, 394.0f, 0.36f, "A YES    B BACK");
         break;
     }
     case TM_ERROR:
         line(TM_MARGIN_X, 130.0f, 0.62f, "ERROR");
         line(TM_MARGIN_X, 174.0f, 0.52f, tm_errmsg);
-        line(TM_MARGIN_X, 404.0f, 0.44f, "A RETRY    B BACK");
+        line(255.0f, 394.0f, 0.36f, "A RETRY    B BACK");
         break;
     }
 }
@@ -371,6 +391,15 @@ void mnTourney_Think(HSD_GObj* gobj)
         tm_dirty = true;
     }
 
+    /* Venue audio defaults, once the set list is stably up (see tm_audio_set).
+     * Not in forceKioskDefaults: that runs inside the menu-enter transition,
+     * where touching the mix crashed the GX texture path (bisected v12-v15). */
+    if (!tm_audio_set && tm_state == TM_LIST) {
+        tm_audio_set = true;
+        OSSetSoundMode(0);                             /* mono */
+        gmMainLib_GetGamePrefs()->sound_balance = 100; /* music off */
+    }
+
     switch (tm_state) {
     case TM_LOADING:
         pollRelay();
@@ -394,6 +423,12 @@ void mnTourney_Think(HSD_GObj* gobj)
             lbTourney_ClearCurrent();
             tm_state = TM_OFF;
             mn_80229860(GM_VS);
+            return;
+        }
+        if (gm_GetButtonsTriggered(4) & PAD_BUTTON_Y) {
+            /* Refresh the set list (B is now "back to main menu"). */
+            sfxForward();
+            sendList();
             return;
         }
         if (buttons & MenuInput_Back) {
@@ -484,7 +519,19 @@ static void forceKioskDefaults(void)
 
     prefs->item_freq = 0xFF;     /* -1 (read as s8) = items OFF; 0 is lowest ON */
     prefs->item_mask = 0;
-    prefs->stage_mask = 0xFFFFFFFF; /* all stages legal on the toggle side */
+    /* Random-stage set = the singles legal six (Battlefield, Final Destination,
+     * Fountain of Dreams, Yoshi's Story, Dream Land, Pokemon Stadium). This is
+     * Magus's "Singles Stages" value for stage_mask (04 write of 0xE70000B0 to
+     * DefaultGamePrefs+0x18). Manual stage picks are unaffected. */
+    prefs->stage_mask = 0xE70000B0;
+
+    /* NOTE: audio venue defaults are NOT forced here. Writing sound_balance to
+     * LIVE prefs at this menu-enter point flips the music mix mid
+     * scene-transition and crashes in the GX texture path (bisected v12-v15).
+     * Both are asserted instead in mnTourney_Think once the set list is stably
+     * up (tm_audio_set): a stable frame, after the memcard save-load (which
+     * overwrites the boot default), before any match. The default template also
+     * carries sound_balance = 100 as a no-memcard fallback. */
 
     gm_8016468C();               /* unlock all stages (the real unlock mask) */
     *gmMainLib_GetUnlockedCharactersBitmaskPtr() = 0xFFFF; /* all characters */
@@ -510,6 +557,7 @@ static void enterTournament(HSD_GObj* gobj)
 void mnTourney_ArmAutoEnter(void)
 {
     tm_auto_enter = true;
+    tm_boot_frames = 0;
 }
 
 void mnTourney_MainMenuThink(HSD_GObj* gobj)
@@ -519,10 +567,20 @@ void mnTourney_MainMenuThink(HSD_GObj* gobj)
      * first frame renders half-initialised menu graphics and crashes in the
      * GX texture path; waiting for cooldown==0 is the safe point (a brief
      * main-menu flash; a zero-frame version needs the panel GObj hidden). */
-    if (tm_auto_enter && mn_804D6BC8.cooldown == 0) {
-        tm_auto_enter = false;
-        enterTournament(gobj);
-        return;
+    if (tm_auto_enter) {
+        /* Let the menu render for a while first: entering the instant cooldown
+         * hits 0 catches half-loaded menu textures and crashes in the GX
+         * texture path (__GXSetSUTexRegs) on a cold boot. */
+        if (tm_boot_frames < TM_BOOT_WARMUP_FRAMES) {
+            tm_boot_frames++;
+            mn_8022DB10(gobj);
+            return;
+        }
+        if (mn_804D6BC8.cooldown == 0) {
+            tm_auto_enter = false;
+            enterTournament(gobj);
+            return;
+        }
     }
     /* Otherwise the main menu is shown (the player backed out with B); Z
      * re-enters the Tournament screen. (A visible main-menu row needs an
