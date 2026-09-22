@@ -7,17 +7,20 @@
 
 /* Tournament set state and the CSS score keybinds (design 6.1).
  *
- * Keybinds, active on the CSS only while a set is current:
- *   Z + D-left        P1 wins a game (sends REPORT_SCORE)
- *   Z + D-right       P2 wins a game (sends REPORT_SCORE)
- *   Z + D-down        undo the last game (sends REPORT_SCORE)
- *   Z + Start (1 s)   end the set (sends END_SET; needs a decided score)
+ * Keybinds, active on the CSS only while a set is current (any port):
+ *   Z + C-left        P1 wins a game (sends REPORT_SCORE)
+ *   Z + C-right       P2 wins a game (sends REPORT_SCORE)
+ *   Z + C-down        undo the last game (sends REPORT_SCORE)
+ *   Z + C-up (1 s)    end the set (sends END_SET; needs a decided score)
+ *   Z + X             flag/unflag the next game as a handwarmer (not scored;
+ *                     clears itself after that game)
+ *   D-pad up/down     rumble on/off for that port (venue mod, any time)
  *
- * The score is drawn in the CSS corner as "MANGO 2 - 1 ZAIN", with "!"
- * appended while a request is in flight and "X" (the design's cross) after
- * a failure. Inputs are ignored while a request is in flight. Character
- * ids are the external CharacterKind read from the CSS ckind fields at
- * send time. */
+ * The score is drawn along the bottom of the CSS as "MANGO P1  2 - 1  P3
+ * ZAIN" (the port that picked each entrant's nametag), with a status line
+ * above it: SENDING... / SCORE SENT / SEND FAILED, else the next game
+ * (GAME n or HANDWARMER). Inputs are ignored while a request is in flight.
+ * Games carry winners only (R13). */
 
 /* Called by mntourney when START_SET succeeds. Copies the set and resets
  * the game list. */
@@ -30,5 +33,10 @@ bool lbTourney_HasCurrent(void);
  * and overlay, then the vanilla mnCharSel handler. */
 void lbTourney_CSSFrame(void);
 void lbTourney_CSSExit(void* arg);
+
+/* GS_VS scene hooks (gmscdata rows): draw the handwarmer overlay during a
+ * flagged game, then the vanilla gm_Scene_Vs handler. */
+void lbTourney_MatchFrame(void);
+void lbTourney_MatchExit(void* arg);
 
 #endif

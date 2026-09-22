@@ -7,6 +7,7 @@
 #include "mnstagesel.static.h"
 #include <melee/gm/gm_unsplit.h>
 #include <melee/gm/gmmain_lib.h>
+#include <melee/gr/forward.h>
 #include <melee/lb/lb_00B0.h>
 #include <melee/lb/lb_013B.h>
 #include <melee/lb/lbarchive.h>
@@ -35,18 +36,99 @@ static void order_sdata2(void)
 }
 #endif
 
+/* Tournament venue stage select (native port of how the venue Wii behaves,
+ * user 2026-09-22). Only the six singles-legal stages exist on the screen:
+ * every other icon is hidden and unhoverable from the first frame. X over a
+ * stage strikes it: the icon disappears, the stage stops being hoverable (so
+ * no hover outline or preview is left behind), A on that spot is refused and
+ * random skips it. Y puts every struck stage back (mis-strike recovery); the
+ * board also resets on every SSS entry. Any port may strike. */
+static u32 sss_struck;
+
+static inline bool sssIsStruck(int id)
+{
+    return id < NUM_STAGES && (sss_struck & (1u << id));
+}
+
+static bool sssIsLegal(u16 stkind)
+{
+    switch (stkind) {
+    case St_Kind_Battle:    /* Battlefield */
+    case St_Kind_Last:      /* Final Destination */
+    case St_Kind_Izumi:     /* Fountain of Dreams */
+    case St_Kind_Story:     /* Yoshi's Story */
+    case St_Kind_OldPupupu: /* Dream Land N64 */
+    case St_Kind_PStadium:  /* Pokemon Stadium */
+        return true;
+    default:
+        return false;
+    }
+}
+
+static void sssStrike(void)
+{
+    int id = mnStageSel_804D6CAE;
+    if (id >= NUM_STAGES || mnStageSel_803F06D0[id].x8 < 2 ||
+        mnStageSel_803F06D0[id].x0 == NULL || sssIsStruck(id))
+    {
+        return;
+    }
+    sss_struck |= 1u << id;
+    /* x8 = 0 takes the stage out of the cursor hit test (fn_8025A310), the
+     * hover outline (fn_8025A560) and the confirm path, exactly like a slot
+     * that does not exist; the hover id is parked on "nothing" so the outline
+     * and preview drop this frame instead of lingering on the empty spot. */
+    mnStageSel_803F06D0[id].x8 = 0;
+    HSD_JObjSetFlagsAll(mnStageSel_803F06D0[id].x0, JOBJ_HIDDEN);
+    mnStageSel_804D6CAE = 0x1E;
+    sfxMove();
+}
+
+static void sssUnstrikeAll(void)
+{
+    int i;
+    if (sss_struck == 0) {
+        return;
+    }
+    for (i = 0; i < NUM_STAGES; i++) {
+        if (sssIsStruck(i)) {
+            /* Back to the "unlocked, selectable" state OnEnter gave it. */
+            mnStageSel_803F06D0[i].x8 = 2;
+            HSD_JObjClearFlagsAll(mnStageSel_803F06D0[i].x0, JOBJ_HIDDEN);
+        }
+    }
+    sss_struck = 0;
+    sfxBack();
+}
+
+/* Random must never dead-lock on an all-struck pool: when no random-eligible
+ * stage is left unstruck, strikes are ignored for that pick. */
+static u32 sssRandomStrikeMask(void)
+{
+    int i;
+    for (i = 0; i < NUM_STAGES; i++) {
+        if (!sssIsStruck(i) && (u8) gm_80164330(mnStageSel_803F06D0[i].xA)) {
+            return sss_struck;
+        }
+    }
+    return 0;
+}
+
 /// Random stage selection
 /// Returns an internal stage ID - 2 (since first 2 internal stage IDs are
 /// invalid)
+/// Intentional matched-function edit: struck stages (the venue's stage
+/// striking) are excluded from every eligibility test, via `mask`.
 int mnStageSel_802599EC(void)
 {
     int var_r0;
     int iter;
     bool var_r29 = true;
     int i;
+    u32 mask = sssRandomStrikeMask();
 
     for (i = 0; i < NUM_STAGES; i++) {
-        if (mnStageSel_803F06D0[i].x4 >= 0 &&
+        if (mnStageSel_803F06D0[i].x4 >= 0 && !(mask & (1u << i)) &&
             (u8) gm_80164330(mnStageSel_803F06D0[i].xA))
         {
             break;
@@ -64,7 +146,7 @@ int mnStageSel_802599EC(void)
             }
         }
         for (i = 0; i < NUM_STAGES; i++) {
-            if (mnStageSel_803F06D0[i].x4 == 0 &&
+            if (mnStageSel_803F06D0[i].x4 == 0 && !(mask & (1u << i)) &&
                 (u8) gm_80164330(mnStageSel_803F06D0[i].xA))
             {
                 var_r29 = false;
@@ -74,7 +156,7 @@ int mnStageSel_802599EC(void)
     for (iter = 0; iter < MAX_ITER; iter++) {
         int tmp = HSD_Randi(NUM_STAGES);
         i = tmp;
-        if (mnStageSel_803F06D0[i].x4 == 0) {
+        if (mnStageSel_803F06D0[i].x4 == 0 && !(mask & (1u << i))) {
             if ((u8) gm_80164330(mnStageSel_803F06D0[i].xA)) {
                 break;
             }
@@ -121,8 +203,11 @@ void mnStageSel_80259C28(void)
         if (!(mnStageSel_804D6CA0 & 0x1100)) {
             return;
         }
+        /* Intentional matched-function edit: a struck stage refuses A like
+         * a locked one (venue stage striking). */
         if (mnStageSel_804D6CAE < 0x1E &&
-            mnStageSel_803F06D0[mnStageSel_804D6CAE].x8 >= 2)
+            mnStageSel_803F06D0[mnStageSel_804D6CAE].x8 >= 2 &&
+            !sssIsStruck(mnStageSel_804D6CAE))
         {
             goto skip_randomize;
         }
@@ -235,7 +320,10 @@ void fn_8025A090(HSD_GObj* gobj)
     jobj = GET_JOBJ(gobj);
     temp_r30 = HSD_GObjGetUserData(gobj);
     var_r3 = mnStageSel_804D6CAE;
-    if (mnStageSel_803F06D0[mnStageSel_804D6CAE].x8 < 2) {
+    /* Intentional matched-function edit: no preview for a struck stage. */
+    if (mnStageSel_803F06D0[mnStageSel_804D6CAE].x8 < 2 ||
+        sssIsStruck(mnStageSel_804D6CAE))
+    {
         var_r3 = 0x1E;
     }
     if (temp_r30->x0 != var_r3) {
@@ -530,6 +618,16 @@ void mnStageSel_Scene_OnEnter(void* arg0)
             mnStageSel_803F06D0[i].x8 =
                 gm_80164430(mnStageSel_803F06D0[i].stkind) ? 2 : 1;
         }
+        sss_struck = 0; /* venue striking: fresh pool every SSS entry */
+        /* Venue SSS: only the six legal stages are on the screen. x8 = 0 is
+         * the "slot does not exist" state the code below already hides and
+         * skips (icon hidden, no hover, no confirm). The random icon (0x1D)
+         * is not a stage row and stays. */
+        for (i = 0; i < 0x1D; i++) {
+            if (!sssIsLegal(mnStageSel_803F06D0[i].stkind)) {
+                mnStageSel_803F06D0[i].x8 = 0;
+            }
+        }
 
         for (i = 0; i <= 0xA; i++) {
             HSD_JObj* temp_r22_6;
@@ -818,6 +916,15 @@ void mnStageSel_Scene_OnFrame(void)
     if (mnStageSel_804D6CA4 != 0) {
         mnStageSel_804D6CA4 -= 1;
         return;
+    }
+    /* Intentional matched-function edit: venue stage striking on X, Y puts
+     * every struck stage back (user, 2026-09-22: a mis-strike must be
+     * recoverable without leaving the screen). */
+    if (mnStageSel_804D6CAF == 0 && (mnStageSel_804D6CA0 & HSD_PAD_X)) {
+        sssStrike();
+    }
+    if (mnStageSel_804D6CAF == 0 && (mnStageSel_804D6CA0 & HSD_PAD_Y)) {
+        sssUnstrikeAll();
     }
     if (sss_data->x1 == 0 && (mnStageSel_804D6CA0 & 0x200) &&
         mnStageSel_804D6CAF == 0)

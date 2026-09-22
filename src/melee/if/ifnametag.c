@@ -12,6 +12,8 @@
 #include <melee/mn/mnmain.h>
 #include <melee/mn/mnname.h>
 #include <melee/pl/player.h>
+#include <melee/ft/inlines.h>
+#include <melee/ft/types.h>
 #include <melee/sc/types.h>
 #include <sysdolphin/baselib/cobj.h>
 #include <sysdolphin/baselib/fog.h>
@@ -209,6 +211,17 @@ void un_802FCBA0(void)
 #pragma pop
 #endif
 
+/* Tournament venue "hide nametag when invisible": the tag must not give away
+ * a fighter whose model is hidden (Sheik's Vanish, Zelda's teleport, the
+ * cloaking device). Reads the fighter's own invisible bit, the one every
+ * hide path sets (ft_0D31 warps, ftCo_800C78B0, ft_0877), so it needs no
+ * per-character state list. */
+static inline bool is_invisible(int slot)
+{
+    HSD_GObj* gobj = Player_GetEntity(slot);
+    return gobj != NULL && GET_FIGHTER(gobj)->invisible;
+}
+
 static inline bool has_nametag(int slot)
 {
     if (Player_GetPlayerSlotType(slot) != Gm_PKind_Human ||
@@ -227,8 +240,12 @@ void fn_802FCC44(HSD_GObj* gobj)
     u8* slot = HSD_GObjGetUserData(gobj);
     HSD_JObj* jobj = gobj->hsd_obj;
     PAD_STACK(8);
+    /* Intentional matched-function edit: the venue's "Hide tags when
+     * invisible" hook lands at exactly this test (fn_802FCC44+0x94); the
+     * faithful port is the extra !is_invisible term. */
     if (Player_GetPlayerSlotType(*slot) != Gm_PKind_NA &&
         Player_GetPlayerState(*slot) && Player_GetStocks(*slot) &&
+        !is_invisible(*slot) &&
         (un_804D6D70[*slot] || Player_GetNametagSlotID(*slot) != 'x' ||
          Player_80036058(*slot) || gm_8016B258(*slot)))
     {

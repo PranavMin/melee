@@ -5521,3 +5521,43 @@ void mnCharSel_Scene_OnExit(void* unused)
     lbAudioAx_8002702C(4, tmp);
     lbAudioAx_80027168();
 }
+
+/* Tournament kiosk: the per-port cursor's hand-offset field (CSSCursorData
+ * xC), used by lbtourney.c to bounce the selection hand when the venue D-pad
+ * rumble toggle fires. NULL when the port has no cursor. New function; no
+ * matched body is touched. */
+f32* mnCharSel_CursorHandOffset(int port)
+{
+    if (port < 0 || port >= 4 || mnCharSel_804A0BC0[port] == NULL) {
+        return NULL;
+    }
+    return &mnCharSel_804A0BC0[port]->xC;
+}
+
+/* Tournament kiosk: the nametag slot a port has picked on this CSS
+ * (0x78 = none), so lbtourney.c can tell which entrant sits on which port
+ * (it seeds slots 0 and 1 with the set's two tags). New function; no matched
+ * body is touched. */
+u8 mnCharSel_PortNametag(int port)
+{
+    if (port < 0 || port >= 4 || mnCharSel_804D6CB0 == NULL) {
+        return 0x78;
+    }
+    return mnCharSel_804D6CB0->vs.start.players[port].nametag;
+}
+
+/* Tournament kiosk: the venue handwarmer bind (Z + X in lbtourney.c) starts
+ * the fight straight from the CSS. This is the body of the vanilla Start
+ * branch above (mnCharSel_804D6CF7 = every present player is ready; CF2 = the
+ * post-confirm lockout; CF6 = 1 asks the scene frame to advance) minus the
+ * rumble pulses. Returns false, doing nothing, when the CSS is not ready. New
+ * function; no matched body is touched. */
+bool mnCharSel_TryStartFight(void)
+{
+    if (mnCharSel_804D6CF2 != 0 || mnCharSel_804D6CF7 == 0) {
+        return false;
+    }
+    mnCharSel_804D6CF6 = 1;
+    mnCharSel_804D6CF2 = 0xFF;
+    return true;
+}

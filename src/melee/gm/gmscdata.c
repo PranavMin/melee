@@ -83,9 +83,11 @@ static GameScene scenes[] = {
     },
     {
         GS_VS,
-        gm_Scene_Vs_OnFrame,
+        /* Tournament reporter: wrappers that draw the handwarmer overlay and
+         * then run the vanilla gm_Scene_Vs handlers. */
+        lbTourney_MatchFrame,
         gm_Scene_Vs_OnEnter,
-        gm_Scene_Vs_OnExit,
+        lbTourney_MatchExit,
         NULL,
     },
     {

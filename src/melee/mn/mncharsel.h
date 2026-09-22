@@ -29,4 +29,8 @@
 /* 2669F4 */ void mnCharSel_Scene_OnFrame(void);
 /* 266D70 */ void mnCharSel_Scene_OnExit(void*);
 
+/* Tournament kiosk (lbtourney.c): the port cursor's hand-offset float, or NULL. */
+f32* mnCharSel_CursorHandOffset(int port);
+u8 mnCharSel_PortNametag(int port);
+bool mnCharSel_TryStartFight(void);
 #endif

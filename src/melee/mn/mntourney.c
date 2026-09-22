@@ -19,6 +19,7 @@
 #include <sysdolphin/baselib/gobj.h>
 #include <sysdolphin/baselib/gobjplink.h>
 #include <sysdolphin/baselib/gobjproc.h>
+#include <sysdolphin/baselib/jobj.h>
 #include <sysdolphin/baselib/sislib.h>
 
 u16 mnTourney_DescIndices[1] = { 0 };
@@ -84,6 +85,40 @@ static int tm_boot_frames = 0;
  * match. sound_balance = 100 puts the SOUNDS<->MUSIC slider at all-sounds (music
  * off); OSSetSoundMode(0) forces mono. */
 static bool tm_audio_set = false;
+
+/* Kiosk: hide/show the main menu's visuals. Its background (class 4, plink 5,
+ * MenMainBack_Top) and panel (class 5, plink 6, MenMainPanel_Top; the cursor
+ * joints are its children) are fire-and-forget GObjs made by the matched
+ * mnMain_Scene_OnEnter, whose returns are discarded - so they are found by
+ * walking their plinks (plinklow_gobjs is the low-priority end; prev walks the
+ * whole list) and matched by classifier. Only the root JObj's render flag
+ * changes: the scene, camera and every proc keep running, so the boot warm-up
+ * still does its job. Hidden for the warm-up only (no main-menu flash); shown
+ * again the moment the set list comes up (its border frames the list) and on
+ * B-back. */
+static void setPlinkClassHidden(u8 link, u16 classifier, bool hide)
+{
+    HSD_GObj* g;
+    for (g = plinklow_gobjs[link]; g != NULL; g = g->prev) {
+        if (g->classifier != classifier || g->hsd_obj == NULL) {
+            continue;
+        }
+        if (hide) {
+            HSD_JObjSetFlagsAll((HSD_JObj*) g->hsd_obj, JOBJ_HIDDEN);
+        } else {
+            HSD_JObjClearFlagsAll((HSD_JObj*) g->hsd_obj, JOBJ_HIDDEN);
+        }
+    }
+}
+
+static void setMenuVisualsHidden(bool hide)
+{
+    /* Panel + cursor only. The backdrop (class 4, plink 5, MenMainBack_Top)
+     * stays visible from frame 0: it is not the "main menu flash" (that is
+     * the options panel), and the set list looks barren without it (user,
+     * 2026-09-22). */
+    setPlinkClassHidden(6, 5, hide);
+}
 
 /* SIS overlay, screen-space like the title screen's build timestamp.
  * Recreated per GS_MENU visit; the scene teardown frees the objects and
@@ -310,6 +345,9 @@ static void exitToMainMenu(void)
 {
     destroyText();
     tm_state = TM_OFF;
+    /* B-back: the player wants the real main menu, so show its visuals again
+     * before its think takes over. */
+    setMenuVisualsHidden(false);
     /* Frees this think GObj and spawns the main-menu think. */
     mn_80229894(MENU_KIND_MAIN, 0, 3);
 }
@@ -516,6 +554,8 @@ static void forceKioskDefaults(void)
     rules->mode = 1;             /* Stock */
     rules->stock_count = 4;
     rules->stock_time_limit = 8; /* 8:00 in Stock mode (reads stock_time_limit) */
+    rules->stage_sel = 0;        /* Choose: the SSS is shown (lbtourney flips
+                                  * this to Random for a Z+X handwarmer start) */
 
     prefs->item_freq = 0xFF;     /* -1 (read as s8) = items OFF; 0 is lowest ON */
     prefs->item_mask = 0;
@@ -544,6 +584,10 @@ static void enterTournament(HSD_GObj* gobj)
     HSD_GObjProc* proc;
 
     forceKioskDefaults();
+    /* Entering the set list: show the menu panel again. It was hidden only
+     * for the boot warm-up (no main-menu flash); on the tournament screen its
+     * border frames the list (user, 2026-09-22: "bring back the border"). */
+    setMenuVisualsHidden(false);
     mn_804D6BC8.cooldown = 5;
     mn_804A04F0.prev_menu = mn_804A04F0.cur_menu;
     mn_804A04F0.cur_menu = MENU_KIND_TOURNAMENT;
@@ -572,6 +616,11 @@ void mnTourney_MainMenuThink(HSD_GObj* gobj)
          * hits 0 catches half-loaded menu textures and crashes in the GX
          * texture path (__GXSetSUTexRegs) on a cold boot. */
         if (tm_boot_frames < TM_BOOT_WARMUP_FRAMES) {
+            if (tm_boot_frames == 0) {
+                /* First warm-up frame: the menu visuals exist (made by the
+                 * scene's OnEnter) but must never be seen. */
+                setMenuVisualsHidden(true);
+            }
             tm_boot_frames++;
             mn_8022DB10(gobj);
             return;

@@ -118,3 +118,60 @@ Legend: each item is something *you* verify by eye on the running build.
       some players have no D-pad.*
 - [ ] **"SCORE SENT"** confirmation appears after a report; **start.gg reflects the score**.
 - [ ] END_SET closes the set on start.gg and returns to the set list.
+
+## 7. CSS / SSS / in-match venue features (v22-v24, native)
+
+- [ ] **D-pad UP/DOWN on the CSS toggles that port's rumble** with the vibration-menu
+      pulse, and the **selection hand shakes** on every toggle (v23, `lbtourney.c`
+      `kickHand`/`stepHand` via `mnCharSel_CursorHandOffset`). *Once a player has picked
+      a nametag, Melee takes in-match rumble from the TAG's flag, not the port's
+      (`gm_RumbleEnabledForPlayer`); the toggle and the tag pick keep both in step. If
+      rumble "ignores" the toggle, that coupling regressed.*
+- [ ] **Set list has the backdrop AND the menu border** around it (v25). *v22 hid
+      both (barren), v23 hid the panel; the panel is now hidden only during the boot
+      warm-up and shown again the moment the set list is up. If the main-menu row
+      text ever shows through behind the list, that is the panel's item children -
+      hide those, not the whole panel.*
+- [ ] **Nametag dropdown lists the set's two tags first** (slots 0 and 1, 4 chars,
+      A-Z/0-9 only, e.g. `MANG` / `ZAIN`; empty tag falls back to `P1`/`P2`). Picking one
+      annotates the CSS score line with the port: `MANGO P1  0 - 0  P3 ZAIN`. *Written
+      into persistent nametag slots 0/1 at START_SET (`writeNametag`), overwriting
+      whatever the kiosk card had there. Friendlies (Z) leave the tags as they were.*
+- [ ] **CSS overlay layout (v31, tuned live by the user):** score `MANGO P1  0 - 0  P3
+      ZAIN` top centre (x 188, y -4, 0.62); hint `ZX FOR HANDWARMER` bottom right (x 456,
+      y 446, 0.43); status (`SENDING... / SCORE SENT / SEND FAILED`) bottom left (x 2,
+      y 446, 0.45). (v32)
+      *`ZX`, not `Z + X`: the SIS font has no `+` (nor `(` `)` `/`). History: v25-v29
+      were placed by rebuild-and-look; v30 added **layout tune mode** so that never
+      happens again; **compiled out since v33** (`LB_TOURNEY_LAYOUT_TUNE 0` in lbtourney.c -
+      set it to 1 to get it back). With it on, on the CSS with a set active, hold **L + R**: D-pad nudges the
+      selected element 2 px (10 with Z), **X** cycles SCORE / HINT / STATUS, **Y** grows
+      the scale by 0.02 (shrinks with Z), and a mid-screen readout `TUNE SCORE X 212 Y 4
+      S 52` shows the live values for 3 s. Read them off and hardcode them in `el[]`
+      (lbtourney.c). The rumble D-pad toggle is suppressed while the chord is held.*
+- [ ] **Z + X on the CSS starts a handwarmer straight away** when every present player
+      is ready: no stage select, the game begins on a random legal stage (`stage_sel`
+      flipped to Random for that one transition so the CSS-exit code fills
+      `force_stage_id` from `mnSelStageRandom()` and the SSS skips itself; restored to
+      Choose on the first match frame). Not ready yet -> the press only arms/disarms the
+      flag (top hint `HANDWARMER NEXT - NOT SCORED   Z AND X TO CANCEL`), and Start goes
+      through the SSS as usual. In the game a `HANDWARMER m:ss` clock counts up **in the
+      top-left corner** and **turns red past 1:00**, and **the HUD's own countdown is
+      hidden** (v27, `ifTime_HideTimers()` re-asserted after every vanilla frame; the
+      match timer still runs underneath, so the 8:00 limit still ends the game). Back on
+      the CSS the flag is **cleared automatically**. *Informational: the C-stick score binds still decide
+      what is scored. `forceKioskDefaults` pins `stage_sel = 0` so a memcard with
+      "random stage" mode cannot skip the SSS for real games.*
+- [ ] **SSS shows ONLY the six legal stages** from the first frame (BF, FD, FoD, YS,
+      DL64, PS; every other icon hidden and unhoverable; the random icon stays). *v25,
+      matching the venue Wii. Filter is by stage id (`sssIsLegal`), not `stage_mask`.*
+- [ ] **Stage striking: X over a stage removes it** - icon gone, **no hover outline or
+      preview left on the empty spot**, A there is refused with the buzz, random skips
+      it. **Y puts all struck stages back** (v26, mis-strike recovery); strikes also
+      reset on every SSS entry. *v24 kept struck stages hoverable so the outline
+      lingered - user flagged it. If every legal stage is struck, random ignores the
+      strikes rather than hanging.*
+- [ ] **Sheik's nametag vanishes during Vanish** (up-B), Zelda's during Farore's Wind,
+      and under a cloaking device: `fn_802FCC44` (ifnametag.c) now also hides the tag
+      while the fighter's own `invisible` bit is set. Tags are hidden during the entry
+      animation too (same bit) - expected.
