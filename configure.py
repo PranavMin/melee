@@ -616,6 +616,7 @@ config.libs = [
             Object(Matching, "melee/lb/lbtourney.c"),
             Object(Matching, "melee/lb/lbneutralspawn.c"),
             Object(Matching, "melee/lb/lbucf.c"),
+            Object(Matching, "melee/lb/lbbuttonglyph.c"),
         ],
     ),
     MeleeLib(

@@ -14,6 +14,7 @@
 #include <melee/gm/gmvsmelee.h>
 #include <melee/gm/types.h>
 #include <melee/if/iftime.h>
+#include <melee/lb/lbbuttonglyph.h>
 #include <melee/lb/lbrelayexi.h>
 #include <melee/lb/lbucf.h>
 #include <melee/mn/mntourney.h>
@@ -484,18 +485,18 @@ static void redraw(void)
     css_text = HSD_SisLib_803A6754(0, css_ctx);
     css_text->default_kerning = 1;
 
-    /* Handwarmer hint at the very top of the screen (user, 2026-09-22): the
-     * bind when off, the armed state when on. 0.43 = the old 0.45 less 5%. */
-    /* Handwarmer hint (bottom right): the bind when off, the armed state when
-     * on. "ZX": the SIS font has no '+' (nor '(' ')' '/'). */
-    if (handwarmer) {
-        entry = HSD_SisLib_803A6B98(css_text, el[EL_HINT].x, el[EL_HINT].y,
-                                    "HANDWARMER NEXT - NOT SCORED   ZX TO CANCEL");
-    } else {
-        entry = HSD_SisLib_803A6B98(css_text, el[EL_HINT].x, el[EL_HINT].y,
-                                    "ZX FOR HANDWARMER");
+    /* Handwarmer hint (bottom right) with button icons: the bind when off,
+     * the armed state when on. The user placed the plain "ZX FOR HANDWARMER"
+     * at el[EL_HINT].x; that text's right edge is kept as the anchor and the
+     * icon versions are right-aligned to it. */
+    {
+        f32 s = el[EL_HINT].scale;
+        f32 right = el[EL_HINT].x + lbButton_Measure(s, "ZX FOR HANDWARMER");
+        const char* fmt =
+            handwarmer ? "#Z+#X CANCELS HANDWARMER" : "#Z+#X FOR HANDWARMER";
+        lbButton_Line(css_text, right - lbButton_Measure(s, fmt),
+                      el[EL_HINT].y, s, fmt);
     }
-    HSD_SisLib_803A7548(css_text, entry, el[EL_HINT].scale, el[EL_HINT].scale);
 
     /* Score (top centre). Each name carries the port that picked its nametag
      * (who is who). SIS y draws ~12 px lower than given; the screen is cut at

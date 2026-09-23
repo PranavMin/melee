@@ -13,6 +13,7 @@
 #include <melee/gm/gm_1601.h>
 #include <melee/gm/gm_1A36.h>
 #include <melee/gm/gmmain_lib.h>
+#include <melee/lb/lbbuttonglyph.h>
 #include <melee/lb/lbrelayexi.h>
 #include <melee/lb/lbtourney.h>
 #include <melee/mn/mnmain.h>
@@ -215,6 +216,14 @@ static int line(f32 x, f32 y, f32 scale, const char* str)
     return entry;
 }
 
+/* A line centred on the 640-wide screen, measured exactly from the font's
+ * kerning table; fmt may carry #A/#B/... button icons (lbbuttonglyph.h). */
+static void centred(f32 y, f32 scale, const char* fmt)
+{
+    f32 w = lbButton_Measure(scale, fmt);
+    lbButton_Line(tm_text, 0.5f * (640.0f - w), y, scale, fmt);
+}
+
 static void drawSetLine(f32 y, bool cursor, const struct set_entry* set)
 {
     char round[ROUND_LEN + 1];
@@ -243,8 +252,7 @@ static void redraw(void)
     tm_text = HSD_SisLib_803A6754(0, tm_ctx);
     tm_text->default_kerning = 1;
 
-    /* Title centered: "TOURNAMENT" ~180px wide at 0.72; x = (640-180)/2. */
-    line(230.0f, 50.0f, 0.72f, "TOURNAMENT");
+    centred(50.0f, 0.72f, "TOURNAMENT");
 
     switch (tm_state) {
     case TM_LOADING:
@@ -256,15 +264,19 @@ static void redraw(void)
     case TM_LIST:
         n = filteredSets(view);
         if (tm_filter == 0) {
-            line(TM_MARGIN_X, 98.0f, 0.5f, "FILTER: ALL    L-R");
+            lbButton_Line(tm_text, TM_MARGIN_X, 98.0f, 0.5f,
+                          "FILTER: ALL   #L #R");
         } else {
             buf[0] = tm_filter;
             buf[1] = '\0';
             HSD_SisLib_803A7548(
                 tm_text,
-                HSD_SisLib_803A6B98(tm_text, TM_MARGIN_X, 98.0f,
-                                    "FILTER: %s    L-R", buf),
+                HSD_SisLib_803A6B98(tm_text, TM_MARGIN_X, 98.0f, "FILTER: %s",
+                                    buf),
                 0.5f, 0.5f);
+            lbButton_Line(tm_text,
+                          TM_MARGIN_X + lbButton_Measure(0.5f, "FILTER: ALL"),
+                          98.0f, 0.5f, "   #L #R");
         }
         if (n == 0) {
             line(TM_MARGIN_X, 150.0f, 0.6f, "NO SETS - PRESS Y TO REFRESH");
@@ -274,21 +286,21 @@ static void redraw(void)
             drawSetLine(y, i == tm_sel, &tm_sets[view[i]]);
             y += 27.0f;
         }
-        /* Hint bar centered, scaled down (0.36): ~340px wide; x = (640-340)/2. */
-        line(150.0f, 394.0f, 0.36f,
-             "A START   Z FRIENDLIES   Y REFRESH   B MENU");
+        /* Hint bar, centred exactly, with button icons. */
+        centred(394.0f, 0.36f,
+                "#A START   #Z FRIENDLIES   #Y REFRESH   #B MENU");
         break;
     case TM_CONFIRM: {
         const struct set_entry* set = &tm_sets[tm_chosen];
         line(TM_MARGIN_X, 120.0f, 0.62f, "START THIS SET?");
         drawSetLine(180.0f, false, set);
-        line(262.0f, 394.0f, 0.36f, "A YES    B BACK");
+        centred(394.0f, 0.36f, "#A YES    #B BACK");
         break;
     }
     case TM_ERROR:
         line(TM_MARGIN_X, 130.0f, 0.62f, "ERROR");
         line(TM_MARGIN_X, 174.0f, 0.52f, tm_errmsg);
-        line(255.0f, 394.0f, 0.36f, "A RETRY    B BACK");
+        centred(394.0f, 0.36f, "#A RETRY    #B BACK");
         break;
     }
 }

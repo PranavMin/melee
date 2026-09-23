@@ -104,9 +104,10 @@ struct sislib_UnkAlloc3 {
 };
 
 extern SIS* HSD_SisLib_804D1124[5];
-extern u8 lbl_8040C8C0[0x240];
-extern u8 HSD_SisLib_8040C680[0x240];
-extern u8 HSD_SisLib_8040CB00[0x240];
+/* 0x248 = 2 bytes x (287 vanilla + 4 kiosk glyphs) + 2 pad, see sislib_font.h */
+extern u8 lbl_8040C8C0[0x248];
+extern u8 HSD_SisLib_8040C680[0x248];
+extern u8 HSD_SisLib_8040CB00[0x248];
 
 extern SisBlock* free_head;
 extern SisBlock* used_head;

@@ -59,9 +59,16 @@ Legend: each item is something *you* verify by eye on the running build.
 
 - [ ] **Title and bottom hint bar are centered** and sit fully inside the border; text fits.
       *Centering x-values are hardcoded estimates per string — nudge if off.*
-- [ ] **No missing/garbage glyphs.** *The SIS font is ASCII-only with no `(` `)` `/`
-      glyphs — those render blank/"V" (the old `(L/R)` filter showed a stray "V";
-      changed to `L-R`). Use hyphens, never parens/slashes/em-dashes in on-screen strings.*
+- [ ] **No missing/garbage glyphs.** *The SIS text encoder (hsd_3A64.c) maps only
+      these ASCII bytes: space `" ' , - . : 0-9 A-Z a-z`. Any other ASCII byte (`+ ( ) /
+      [ ] % & * @ # $ = < > ? !`) is taken as a Shift-JIS lead byte and eats the next
+      character - that was the stray "V" from `(L/R)` and the blank from `Z + X`. The
+      glyphs DO exist in the font (HSD_SisLib_FontAtlas, 287 glyphs, sheet rendered
+      2026-09-22): write them as 2-byte SJIS escapes in the string literal, e.g. `+` =
+      `"{"` (0x817B), `(` `)` = `"i"` `"j"`, `/` = `"^"`, `!` = `"I"`,
+      `?` = `"H"`, `x` (times) = `"~"`, `=` = `""`, `%` = `""`.
+      There are NO controller-button glyphs in the font (digits, Latin, kana, symbols,
+      24 kanji only) - icons need textures (design.md sec 12).*
 - [ ] Set-list rows read correctly: `> ROUND  NAME VS NAME  BOx` with proper spacing.
 
 ## 4. Venue mods (UCF + Neutral Spawns) — native, NOT gecko
@@ -137,9 +144,25 @@ Legend: each item is something *you* verify by eye on the running build.
       annotates the CSS score line with the port: `MANGO P1  0 - 0  P3 ZAIN`. *Written
       into persistent nametag slots 0/1 at START_SET (`writeNametag`), overwriting
       whatever the kiosk card had there. Friendlies (Z) leave the tags as they were.*
+- [ ] **Button icons in the overlays (v35).** The set-list hint bar reads
+      `(A) START  (Z) FRIENDLIES  (Y) REFRESH  (B) MENU` with real GameCube-coloured
+      button discs (A green, B red, X/Y light grey, Z purple square, L/R grey squares,
+      Start grey pill, C-stick yellow), the confirm/error hints `(A) YES (B) BACK`, the
+      filter line `(L) (R)`, and the CSS hint `(Z)+(X) FOR HANDWARMER` / `(Z)+(X) CANCELS
+      HANDWARMER`. *Mechanism: 4 shape glyphs appended to the SIS font atlas
+      (`sislib_font_extra.inc` from `tools/gen_button_glyphs.py`, indices 287-290, SJIS
+      0x8540-0x8543) + one row each in the three lookup tables in hsd_3A76.c (now
+      `[0x248]`); `lbbuttonglyph.c` draws an icon as a coloured shape entry with the
+      font's own letter over it, all positioned from the kerning table, and translates
+      `+ ( ) / ! ?` to their SJIS pairs so callers write plain ASCII with `#A`-style
+      markers. `lbButton_Measure` gives exact widths, so the title and hint bars are now
+      centred by measurement, not by eye. Things to eyeball: letter centred in its disc,
+      icon baseline level with the text, the hint bar not clipped at either edge, and
+      the CSS hint still right-anchored where the user put it (right edge of the old
+      `ZX FOR HANDWARMER`).*
 - [ ] **CSS overlay layout (v31, tuned live by the user):** score `MANGO P1  0 - 0  P3
-      ZAIN` top centre (x 188, y -4, 0.62); hint `ZX FOR HANDWARMER` bottom right (x 456,
-      y 446, 0.43); status (`SENDING... / SCORE SENT / SEND FAILED`) bottom left (x 2,
+      ZAIN` top centre (x 188, y -4, 0.62); hint `Z + X FOR HANDWARMER` (the `+` is the SJIS escape `{`, v34) bottom right
+      (x 456, y 446, 0.43); status (`SENDING... / SCORE SENT / SEND FAILED`) bottom left (x 2,
       y 446, 0.45). (v32)
       *`ZX`, not `Z + X`: the SIS font has no `+` (nor `(` `)` `/`). History: v25-v29
       were placed by rebuild-and-look; v30 added **layout tune mode** so that never
@@ -149,6 +172,13 @@ Legend: each item is something *you* verify by eye on the running build.
       the scale by 0.02 (shrinks with Z), and a mid-screen readout `TUNE SCORE X 212 Y 4
       S 52` shows the live values for 3 s. Read them off and hardcode them in `el[]`
       (lbtourney.c). The rumble D-pad toggle is suppressed while the chord is held.*
+- [ ] **SIS vertical rule (found fixing the icon letters, v36):** a glyph drawn at
+      entry scale s lands **32*(1-s) px below the entry's y**. Each entry pushes its
+      scale opcode at its start and pops it at its end, so every entry is measured as a
+      32-unit line at the text's default scale 1.0 and bottom-aligned to it. That is the
+      "~12 px lower" seen at 0.63 and why the icon letters (scale 0.58*s) sat 13 px
+      low in v35. Position two entries of different scale relative to each other with
+      this rule, never by eye.
 - [ ] **Z + X on the CSS starts a handwarmer straight away** when every present player
       is ready: no stage select, the game begins on a random legal stage (`stage_sel`
       flipped to Random for that one transition so the CSS-exit code fills
