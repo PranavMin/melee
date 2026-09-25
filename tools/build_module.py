@@ -14,6 +14,11 @@ Output file format (all big-endian):
     n_patches x { u32 addr, u32 value }
     blob                                    # .text .rodata .data .bss (zeroed)
 
+Loader contract: verify guard, require *(u32*)0x80000034 (arena top set by the
+apploader) >= load_addr + blob_len, copy the blob to load_addr, apply the
+patches, then write load_addr to 0x80000034 so the game's heap stops below the
+module. Flush/invalidate caches over both.
+
 Fails fast on: an external that is not a vanilla symbol, a hook symbol missing
 from the module, the blob leaving its region, or any overlap with the gecko
 codesets Nintendont applies to the venue build.
@@ -33,10 +38,17 @@ HOOKS = ROOT / "tools" / "module_hooks.txt"
 GECKO_DIR = ROOT.parent / "Nintendont" / "kernel" / "gecko"
 OUTPUT = ROOT / "build" / "GALE01" / "tournament.bin"
 
-# Vanilla toy.c (trophy) code: 0x80304470-0x80312834. Start past the two
-# trophy-check functions Slippi core patches (0x803044F0, 0x8030490C).
-LOAD_ADDR = 0x80305000
-REGION_END = 0x80312834
+# Where the module lives: the top of MEM1, carved off the game's arena. The
+# IPL/apploader places the FST at 0x817FFFFF - max_fst_size (0x817F8AC0 on a
+# 1.02 disc, FST 0x7529 bytes) and records that as the arena top at
+# 0x80000034, which Melee's OSInit adopts (libs/dolphin/src/dolphin/os/OS.c:177)
+# and hands to its heap. The loaders copy the module to LOAD_ADDR and lower
+# 0x80000034 to LOAD_ADDR, so the heap never reaches it and nothing else is
+# up there (verified: no vanilla code, Nintendont, or venue gecko code touches
+# 0x817xxxxx). Costs the heap ~99 KB of ~18 MB. Vanilla text was NOT usable:
+# every 20 KB+ stretch (even the trophy code) has callers in the normal flow.
+LOAD_ADDR = 0x817E0000
+REGION_END = 0x817F8AC0  # FST start on a 1.02 disc; loaders also assert *0x34 >= end
 GUARD_ADDR = 0x8016D800  # gm_Scene_Vs_OnFrame's first instruction (not patched)
 
 TUS = [
