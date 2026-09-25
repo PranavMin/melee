@@ -24,24 +24,24 @@
 /* Largest request payload in the protocol (report_score_req/end_set_req). */
 #define LB_RELAY_EXI_MAX_PAYLOAD 28
 
-/* What one EXI_RELAY_POLL read returns: the ARM-side state word, then the
- * response message (valid only when state == RELAY_DONE). */
+/* What one EXI_RELAY_POLL read returns: the host-filled exi_poll_hdr (state,
+ * this station's number, the relay's address - protocol.yaml), then the
+ * response message (valid only when ph.state == RELAY_DONE). */
 struct lbRelayExi_PollBuf {
-    u8 state; /* enum exi_poll_state */
-    u8 _pad[3];
+    struct exi_poll_hdr ph;
     struct relay_hdr hdr; /* echoes the request's cmd */
     struct relay_resp resp;
-    u8 payload[LB_RELAY_EXI_BUF_SIZE - 4 - sizeof(struct relay_hdr) -
-               sizeof(struct relay_resp)];
+    u8 payload[LB_RELAY_EXI_BUF_SIZE - sizeof(struct exi_poll_hdr) -
+               sizeof(struct relay_hdr) - sizeof(struct relay_resp)];
 };
 
 RELAY_STATIC_ASSERT(sizeof(struct lbRelayExi_PollBuf) == LB_RELAY_EXI_BUF_SIZE,
                     lb_poll_buf_size);
-RELAY_STATIC_ASSERT(offsetof(struct lbRelayExi_PollBuf, hdr) == 4,
+RELAY_STATIC_ASSERT(offsetof(struct lbRelayExi_PollBuf, hdr) == 12,
                     lb_poll_buf_hdr);
-RELAY_STATIC_ASSERT(offsetof(struct lbRelayExi_PollBuf, resp) == 12,
+RELAY_STATIC_ASSERT(offsetof(struct lbRelayExi_PollBuf, resp) == 20,
                     lb_poll_buf_resp);
-RELAY_STATIC_ASSERT(offsetof(struct lbRelayExi_PollBuf, payload) == 44,
+RELAY_STATIC_ASSERT(offsetof(struct lbRelayExi_PollBuf, payload) == 52,
                     lb_poll_buf_payload);
 
 /* Start a request: writes header + payload to the device and marks it in

@@ -116,7 +116,7 @@ s32 lbRelayExi_Poll(void)
         in_flight = false;
         return -1;
     }
-    state = ((struct lbRelayExi_PollBuf*) resp_buf)->state;
+    state = ((struct lbRelayExi_PollBuf*) resp_buf)->ph.state;
     if (state == RELAY_DONE || state == RELAY_ERROR) {
         in_flight = false;
     }

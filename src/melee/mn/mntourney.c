@@ -39,11 +39,20 @@ u16 mnTourney_DescIndices[1] = { 0 };
 
 /* Menu flow (design 6.1):
  *
- *   [Loading...]  LIST_SETS in flight
- *   Set list      up/down scroll, L/R first-letter tag filter, A confirm,
- *                 B back to main menu
- *   Confirm       "WR2  MANGO VS ZAIN - BO3  START?"; A sends START_SET
+ *   [Loading]     LIST_SETS in flight
+ *   Set list      up/down moves, left/right pages, L/R first-letter tag
+ *                 filter, X jumps to the set this station is playing, Y
+ *                 refreshes (cursor kept on the same set), A confirms, Z
+ *                 friendlies, B back to the main menu
+ *   Confirm       the list dims, the side pane asks; A sends START_SET
  *   Error         A retries the failed request, B goes back
+ *
+ * Screen ("Direction B", design pitch 2026-09-25): the vanilla main-menu
+ * panel frames everything. Its left two thirds hold the set list - rows are
+ * the two tags on a fixed VS axis, grouped under round-name headers - and
+ * its preview box on the right is the detail pane for the highlighted set
+ * (round, tags, best-of, state, the primary action). Confirm, loading and
+ * error all happen in that same frame instead of swapping screens.
  *
  * The relay device answers within the kernel's 3 s budget; the menu polls
  * once per frame and gives up after 5 s (an absent device reads junk poll
@@ -59,25 +68,96 @@ enum mnTourney_State {
 };
 
 #define TM_TIMEOUT_FRAMES (5 * 60)
-#define TM_ROWS_VISIBLE 9
-#define TM_MARGIN_X 64.0f /* left margin, inside the menu border */
 /* Largest row count that fits the 4 KB poll buffer alongside the headers. */
 #define TM_MAX_SETS                                                          \
     ((int) ((sizeof(((struct lbRelayExi_PollBuf*) 0)->payload) -             \
              sizeof(struct list_sets_resp)) /                                \
             sizeof(struct set_entry)))
 
+/* ---- layout, 640x480 screen px (the SIS canvas is 1:1 with the screen) ----
+ * Text sizes are SIS scales: cap height = 26 * scale px, so 0.70 = 18 px
+ * (the composite-TV floor for anything that matters), 0.50 = 13 px. A glyph
+ * of scale s is drawn 32*(1-s) px below its entry's y and every scale shares
+ * the line's bottom, so different scales on one y are baseline-aligned. */
+#define L_TITLE_X 84.0f /* the panel's own title spot, top-left tab */
+#define L_TITLE_Y 40.0f
+#define L_TITLE_S 0.90f
+#define L_HEAD_Y 88.0f /* filter pill + position */
+#define L_HEAD_S 0.55f
+#define L_LIST_X 58.0f /* scrim and cursor bar */
+#define L_LIST_W 326.0f
+#define L_LIST_Y 120.0f
+#define L_LIST_H 276.0f
+#define L_LIST_CX 221.0f
+#define L_SLOT_Y 120.0f /* first row/header slot */
+#define L_SLOT_H 30.0f
+#define L_SLOTS 8
+#define L_TEXT_X 70.0f /* headers, filter, error text */
+#define L_TAG_L_R 200.0f /* left tag right-aligned here */
+#define L_TAG_W 140.0f
+#define L_AXIS_X 208.0f /* "VS" */
+#define L_TAG_R_X 242.0f
+#define L_ROW_S 0.70f
+#define L_ROW_MIN_S 0.58f
+#define L_HDR_S 0.55f
+#define L_BAR_DY 6.0f /* cursor bar: slot y + 6, 28 tall (row ink is 11..29) */
+#define L_BAR_H 28.0f
+#define L_MORE_Y 362.0f /* inside the scrim, under the last slot */
+/* The detail pane sits where the vanilla panel's preview box is (x 395..587);
+ * at the frame we hold (10) the box outline itself is not drawn, so the
+ * pane gets a scrim of its own, level with the list's. */
+#define L_PANE_X 410.0f
+#define L_PANE_W 165.0f
+#define L_PANE_BOX_X 396.0f
+#define L_PANE_BOX_Y 120.0f
+#define L_PANE_BOX_W 190.0f
+#define L_PANE_BOX_H 276.0f
+#define L_PANE_S 0.48f /* round name, wrapped */
+#define L_HINT_CX 320.0f /* between the panel's two bottom corner boxes */
+#define L_HINT_Y 400.0f
+#define L_HINT_S 0.50f
+#define L_SCRIM_A 150 /* alpha of the dark list scrim */
+#define L_BAR_A 80    /* alpha of the cursor bar */
+#define L_PULSE_FRAMES 20
+
+static const GXColor c_white = { 255, 255, 255, 255 };
+static const GXColor c_dim = { 169, 188, 230, 255 };  /* secondary */
+static const GXColor c_dim2 = { 126, 145, 191, 255 }; /* headers, cues */
+static const GXColor c_yel = { 255, 228, 92, 255 };   /* Melee cursor yellow */
+static const GXColor c_amb = { 255, 179, 71, 255 };   /* playing here */
+static const GXColor c_red = { 255, 106, 92, 255 };
+static const GXColor c_grn = { 94, 224, 138, 255 };
+static const GXColor c_muted = { 96, 110, 150, 255 }; /* list behind a confirm */
+static const GXColor c_scrim = { 2, 4, 14, 255 };
+static const GXColor c_tint = { 70, 60, 10, 255 };    /* pane behind a confirm */
+static const GXColor c_bar = { 120, 170, 255, 255 };
+static const GXColor c_pill5 = { 90, 82, 184, 255 };  /* Z purple */
+static const GXColor c_pill3 = { 110, 112, 125, 255 };
+
 static u8 tm_state = TM_OFF;
 static struct set_entry tm_sets[MAX_SETS];
 static u16 tm_count;
 static u16 tm_sel;    /* cursor, an index into the filtered view */
-static u16 tm_top;    /* first visible filtered row */
+static u16 tm_top;    /* first visible slot (headers count as slots) */
 static u16 tm_chosen; /* tm_sets index picked on the confirm screen */
 static char tm_filter; /* 0 = all sets, else 'A'..'Z' */
 static u32 tm_timeout;
 static u8 tm_retry_cmd; /* relay_cmd the error screen's A retries */
 static char tm_errmsg[MSG_LEN + 1];
+static bool tm_err_link; /* the error is ours/transport, not the relay's answer */
 static bool tm_dirty;
+static u32 tm_keep_id; /* set_id to put the cursor back on after a reload */
+static struct exi_poll_hdr tm_ph; /* station / relay address, host-filled */
+static u32 tm_frame;
+/* Filtered view and its display slots, rebuilt every frame (<= 56 sets). */
+static u8 tm_view[MAX_SETS];
+static int tm_nview;
+struct tm_slot {
+    u8 is_header;
+    u8 view_idx;
+};
+static struct tm_slot tm_slots[2 * MAX_SETS];
+static int tm_nslots;
 /* When the main-menu think should drop straight into the set list: armed at
  * boot (static init) and whenever the CSS routes back here (END_SET, CSS-B).
  * A manual B-back from the list leaves it clear, so the main menu stays up. */
@@ -135,14 +215,53 @@ static void setMenuVisualsHidden(bool hide)
 
 /* SIS overlay, screen-space like the title screen's build timestamp.
  * Recreated per GS_MENU visit; the scene teardown frees the objects and
- * mnTourney_MenuSceneExit forgets them. */
+ * mnTourney_MenuSceneExit forgets them. Three text objects because glyph
+ * alpha is per text (texture alpha x text_color.a, hsd_3A76.c:897): the
+ * scrim and the cursor bar are translucent stretched block glyphs, drawn
+ * first (creation order is draw order), everything else is opaque. */
 static s32 tm_ctx = -1;
+static HSD_Text* tm_scrim = NULL;
+static HSD_Text* tm_bar = NULL;
 static HSD_Text* tm_text = NULL;
 
+/* Copies up to n chars of a NUL-padded wire string, replacing what the SIS
+ * encoder cannot draw (it would swallow the next character) with a space. */
 static void copyStr(char* dst, const char* src, int n)
 {
-    memcpy(dst, src, n);
-    dst[n] = '\0';
+    int i;
+    for (i = 0; i < n && src[i] != '\0'; i++) {
+        char c = src[i];
+        dst[i] = (c != '#' && lbButton_Drawable(c)) ? c : ' ';
+    }
+    dst[i] = '\0';
+}
+
+static char* putStr(char* p, const char* s)
+{
+    while (*s != '\0') {
+        *p++ = *s++;
+    }
+    *p = '\0';
+    return p;
+}
+
+static char* putInt(char* p, int v)
+{
+    char tmp[12];
+    int n = 0;
+    if (v < 0) {
+        *p++ = '-';
+        v = -v;
+    }
+    do {
+        tmp[n++] = (char) ('0' + v % 10);
+        v /= 10;
+    } while (v != 0);
+    while (n > 0) {
+        *p++ = tmp[--n];
+    }
+    *p = '\0';
+    return p;
 }
 
 static char upperFirst(const char* tag)
@@ -163,17 +282,79 @@ static bool setMatchesFilter(const struct set_entry* set)
            upperFirst(set->p2_tag) == tm_filter;
 }
 
-/* Fills out with tm_sets indices matching the filter; returns the count. */
-static int filteredSets(u8* out)
+static bool sameRound(const struct set_entry* a, const struct set_entry* b)
 {
     int i;
-    int n = 0;
-    for (i = 0; i < tm_count; i++) {
-        if (setMatchesFilter(&tm_sets[i])) {
-            out[n++] = i;
+    for (i = 0; i < ROUND_LEN; i++) {
+        if (a->round[i] != b->round[i]) {
+            return false;
+        }
+        if (a->round[i] == '\0') {
+            break;
         }
     }
-    return n;
+    return true;
+}
+
+/* The filtered view (tm_sets indices) and its slots: every run of equal
+ * round names gets a header slot in front of it. */
+static void buildView(void)
+{
+    int i;
+    tm_nview = 0;
+    tm_nslots = 0;
+    for (i = 0; i < tm_count; i++) {
+        int v;
+        if (!setMatchesFilter(&tm_sets[i])) {
+            continue;
+        }
+        v = tm_nview++;
+        tm_view[v] = (u8) i;
+        if (v == 0 || !sameRound(&tm_sets[tm_view[v - 1]], &tm_sets[i])) {
+            tm_slots[tm_nslots].is_header = 1;
+            tm_slots[tm_nslots].view_idx = (u8) v;
+            tm_nslots++;
+        }
+        tm_slots[tm_nslots].is_header = 0;
+        tm_slots[tm_nslots].view_idx = (u8) v;
+        tm_nslots++;
+    }
+    if (tm_sel >= tm_nview) {
+        tm_sel = tm_nview > 0 ? tm_nview - 1 : 0;
+    }
+}
+
+static int slotOf(int view_idx)
+{
+    int k;
+    for (k = 0; k < tm_nslots; k++) {
+        if (!tm_slots[k].is_header && tm_slots[k].view_idx == view_idx) {
+            return k;
+        }
+    }
+    return 0;
+}
+
+/* Scrolls so the cursor's slot is on screen; moving up onto the first row
+ * of a group brings its header along. Never leaves blank slots below. */
+static void ensureVisible(void)
+{
+    int s = slotOf(tm_sel);
+    int maxtop = tm_nslots - L_SLOTS;
+    if (maxtop < 0) {
+        maxtop = 0;
+    }
+    if (s < tm_top) {
+        tm_top = (s > 0 && tm_slots[s - 1].is_header) ? s - 1 : s;
+    } else if (s >= tm_top + L_SLOTS) {
+        tm_top = s - L_SLOTS + 1;
+    }
+    if (tm_top > maxtop) {
+        tm_top = maxtop;
+    }
+    if (s < tm_top) {
+        tm_top = s;
+    }
 }
 
 /* Steps tm_filter through ALL plus each letter some tag starts with. */
@@ -211,7 +392,25 @@ static void stepFilter(int dir)
     tm_filter = letters[cur];
     tm_sel = 0;
     tm_top = 0;
+    buildView();
 }
+
+/* Puts the cursor on set_id if the view has it, else on the first row. */
+static void selectSet(u32 set_id)
+{
+    int v;
+    tm_sel = 0;
+    for (v = 0; v < tm_nview; v++) {
+        if (tm_sets[tm_view[v]].set_id == set_id) {
+            tm_sel = (u16) v;
+            break;
+        }
+    }
+    tm_top = 0;
+    ensureVisible();
+}
+
+/* ------------------------------------------------------------ drawing */
 
 static void destroyText(void)
 {
@@ -219,118 +418,448 @@ static void destroyText(void)
         HSD_SisLib_803A5CC4(tm_text);
         tm_text = NULL;
     }
+    if (tm_bar != NULL) {
+        HSD_SisLib_803A5CC4(tm_bar);
+        tm_bar = NULL;
+    }
+    if (tm_scrim != NULL) {
+        HSD_SisLib_803A5CC4(tm_scrim);
+        tm_scrim = NULL;
+    }
 }
 
-static int line(f32 x, f32 y, f32 scale, const char* str)
+static HSD_Text* newText(u8 alpha)
 {
-    int entry = HSD_SisLib_803A6B98(tm_text, x, y, "%s", str);
-    HSD_SisLib_803A7548(tm_text, entry, scale, scale);
-    return entry;
+    HSD_Text* t = HSD_SisLib_803A6754(lbButton_Font(), tm_ctx);
+    t->default_kerning = 1;
+    t->text_color.a = alpha;
+    return t;
 }
 
-/* A line centred on the 640-wide screen, measured exactly from the font's
- * kerning table; fmt may carry #A/#B/... button icons (lbbuttonglyph.h). */
-static void centred(f32 y, f32 scale, const char* fmt)
+/* Every string goes through the icon walker so the punctuation the SIS
+ * encoder cannot map ( / + ( ) ! ? ) is translated; wire strings are
+ * copyStr'd first, which also drops '#', so no tag can start an icon. */
+static void lineC(f32 x, f32 y, f32 scale, const GXColor* c, const char* str)
+{
+    lbButton_LineC(tm_text, x, y, scale, c, str);
+}
+
+static f32 width(f32 scale, const char* str)
+{
+    return lbButton_Measure(scale, str);
+}
+
+static void rightAt(f32 rx, f32 y, f32 scale, const GXColor* c, const char* str)
+{
+    lineC(rx - width(scale, str), y, scale, c, str);
+}
+
+/* A line centred on cx, measured exactly from the font's kerning table; fmt
+ * may carry #A/#B/... button icons (lbbuttonglyph.h). */
+static void centredAt(f32 cx, f32 y, f32 scale, const GXColor* c,
+                      const char* fmt)
 {
     f32 w = lbButton_Measure(scale, fmt);
-    lbButton_Line(tm_text, 0.5f * (640.0f - w), y, scale, fmt);
+    lbButton_LineC(tm_text, cx - 0.5f * w, y, scale, c, fmt);
 }
 
-static void drawSetLine(f32 y, bool cursor, const struct set_entry* set)
+/* Shrinks buf's scale from s0 (not below s_min) until it fits w, then cuts
+ * it with a '-' tail if it still does not. Returns the scale to draw at. */
+static f32 fitText(char* buf, f32 s0, f32 s_min, f32 w)
 {
-    char round[ROUND_LEN + 1];
+    f32 s = s0;
+    f32 tw = width(s, buf);
+    int n;
+    if (tw > w) {
+        s = s0 * w / tw;
+        if (s < s_min) {
+            s = s_min;
+        }
+    }
+    while ((n = (int) strlen(buf)) > 1 && width(s, buf) > w) {
+        buf[n - 1] = '\0';
+        buf[n - 2] = '-';
+    }
+    return s;
+}
+
+/* Two tags share one scale (the wider one decides), then each is cut to
+ * its column if the floor scale still overflows. */
+static f32 pairScale(char* p1, char* p2, f32 w)
+{
+    f32 w1 = width(L_ROW_S, p1);
+    f32 w2 = width(L_ROW_S, p2);
+    f32 wm = w1 > w2 ? w1 : w2;
+    f32 s = L_ROW_S;
+    if (wm > w) {
+        s = L_ROW_S * w / wm;
+        if (s < L_ROW_MIN_S) {
+            s = L_ROW_MIN_S;
+        }
+    }
+    fitText(p1, s, s, w);
+    fitText(p2, s, s, w);
+    return s;
+}
+
+/* str on up to two lines of width w at scale s0: one line if it fits, or
+ * fits shrunk to s_one (so "WINNERS ROUND 1" does not orphan its "1");
+ * else broken at the last space that fits, and a line that still overflows
+ * (one long word) is shrunk. */
+static void wrap2(f32 x, f32 y, f32 dy, f32 s0, f32 s_one, f32 w,
+                  const GXColor* c, const char* str)
+{
+    char a[MSG_LEN + 1];
+    char b[MSG_LEN + 1];
+    int n = (int) strlen(str);
+    int cut = -1;
+    int i, k;
+
+    b[0] = '\0';
+    if (width(s0, str) <= w) {
+        memcpy(a, str, n + 1);
+    } else if (width(s_one, str) <= w) {
+        memcpy(a, str, n + 1);
+        s0 = s0 * w / width(s0, str);
+    } else {
+        for (i = 1; i < n; i++) {
+            if (str[i] == ' ') {
+                memcpy(a, str, i);
+                a[i] = '\0';
+                if (width(s0, a) <= w) {
+                    cut = i;
+                }
+            }
+        }
+        if (cut < 0) {
+            memcpy(a, str, n + 1);
+        } else {
+            memcpy(a, str, cut);
+            a[cut] = '\0';
+            memcpy(b, str + cut + 1, n - cut);
+        }
+    }
+    for (k = 0; k < 2; k++) {
+        const char* ln = k == 0 ? a : b;
+        f32 s = s0;
+        f32 tw;
+        if (ln[0] == '\0') {
+            break;
+        }
+        tw = width(s, ln);
+        if (tw > w) {
+            s = s0 * w / tw;
+            if (s < 0.36f) {
+                s = 0.36f;
+            }
+        }
+        lineC(x, y + k * dy, s, c, ln);
+    }
+}
+
+/* A small disc in front of a label at text scale s (dot centred on the
+ * label's ink line: shape centre y+16S-17s, see lbbuttonglyph.c drawIcon). */
+static void dotLabel(f32 x, f32 y, f32 s, const GXColor* c, const char* label)
+{
+    f32 t = 0.56f * s;
+    f32 yy = y + 16.0f * t - 17.0f * s;
+    x += lbButton_Shape(tm_text, x, yy, t, LB_SHAPE_DISC, *c) + 4.0f;
+    lineC(x, y, s, c, label);
+}
+
+/* Three dots, the bright one walking every L_PULSE_FRAMES frames. */
+static void pulse(f32 cx, f32 y, f32 s)
+{
+    f32 adv = lbButton_ShapeAdvance(0.5f * s, LB_SHAPE_DISC) + 6.0f;
+    f32 x = cx - 1.5f * adv;
+    int on = (int) ((tm_frame / L_PULSE_FRAMES) % 3);
+    int i;
+    for (i = 0; i < 3; i++) {
+        f32 t = 0.5f * s;
+        f32 yy = y + 16.0f * t - 17.0f * s;
+        lbButton_Shape(tm_text, x, yy, t, LB_SHAPE_DISC, i == on ? c_white : c_dim2);
+        x += adv;
+    }
+}
+
+static void drawRow(f32 y, const struct set_entry* set, bool selected,
+                    bool muted)
+{
     char p1[TAG_LEN + 1];
     char p2[TAG_LEN + 1];
-    int entry;
+    const GXColor* c;
+    f32 s;
 
-    copyStr(round, set->round, ROUND_LEN);
     copyStr(p1, set->p1_tag, TAG_LEN);
     copyStr(p2, set->p2_tag, TAG_LEN);
-    /* Player names first (the thing players scan for); round/phase trails. */
-    entry = HSD_SisLib_803A6B98(tm_text, TM_MARGIN_X, y, "%s%s VS %s  BO%d  %s",
-                                cursor ? "> " : "  ", p1, p2, set->best_of,
-                                round);
-    HSD_SisLib_803A7548(tm_text, entry, 0.55f, 0.55f);
+    s = pairScale(p1, p2, L_TAG_W);
+    c = muted ? &c_muted : selected ? &c_yel : set->state != 0 ? &c_amb : &c_white;
+    if (selected) {
+        lbButton_Box(tm_bar, L_LIST_X, y + L_BAR_DY, L_LIST_W, L_BAR_H, c_bar);
+        lbButton_Box(tm_text, L_LIST_X, y + L_BAR_DY, 4.0f, L_BAR_H,
+                     muted ? c_muted : c_yel);
+    }
+    rightAt(L_TAG_L_R, y, s, c, p1);
+    lineC(L_AXIS_X, y, L_HDR_S, muted ? &c_muted : &c_dim, "VS");
+    lineC(L_TAG_R_X, y, s, c, p2);
+}
+
+/* Filter pill on the left, position on the right, scroll-up cue. */
+static void drawHeader(void)
+{
+    char buf[48];
+    char* p;
+    int k, last, first_row = 0, last_row = 0;
+
+    if (tm_filter == 0) {
+        lbButton_LineC(tm_text, L_TEXT_X, L_HEAD_Y, L_HEAD_S, &c_dim,
+                       "#L ALL SETS #R");
+    } else {
+        p = putStr(buf, "#L NAMES: ");
+        *p++ = tm_filter;
+        putStr(p, " #R");
+        lbButton_LineC(tm_text, L_TEXT_X, L_HEAD_Y, L_HEAD_S, &c_dim, buf);
+    }
+    if (tm_nview == 0) {
+        return;
+    }
+    last = tm_top + L_SLOTS;
+    if (last > tm_nslots) {
+        last = tm_nslots;
+    }
+    for (k = tm_top; k < last; k++) {
+        if (!tm_slots[k].is_header) {
+            if (first_row == 0) {
+                first_row = tm_slots[k].view_idx + 1;
+            }
+            last_row = tm_slots[k].view_idx + 1;
+        }
+    }
+    p = putInt(buf, first_row);
+    p = putStr(p, "-");
+    p = putInt(p, last_row);
+    p = putStr(p, " / ");
+    p = putInt(p, tm_nview);
+    if (tm_filter != 0) {
+        p = putStr(p, " OF ");
+        p = putInt(p, tm_count);
+    }
+    rightAt(L_TAG_R_X + L_TAG_W - 12.0f, L_HEAD_Y, L_HEAD_S, &c_dim, buf);
+    if (tm_top > 0) {
+        lbButton_Shape(tm_text, L_TAG_R_X + L_TAG_W - 10.0f, L_HEAD_Y, L_HEAD_S,
+                       LB_SHAPE_TRI_UP, c_dim2);
+    }
+}
+
+static void drawList(bool muted)
+{
+    int k;
+    int last = tm_top + L_SLOTS;
+    if (last > tm_nslots) {
+        last = tm_nslots;
+    }
+    for (k = tm_top; k < last; k++) {
+        f32 y = L_SLOT_Y + (f32) (k - tm_top) * L_SLOT_H;
+        const struct tm_slot* sl = &tm_slots[k];
+        const struct set_entry* set = &tm_sets[tm_view[sl->view_idx]];
+        if (sl->is_header) {
+            char r[ROUND_LEN + 1];
+            copyStr(r, set->round, ROUND_LEN);
+            lineC(L_TEXT_X, y, L_HDR_S, muted ? &c_muted : &c_dim2, r);
+        } else {
+            drawRow(y, set, sl->view_idx == tm_sel, muted);
+        }
+    }
+    if (last < tm_nslots && !muted) {
+        f32 w = lbButton_ShapeAdvance(L_HINT_S, LB_SHAPE_TRI_DN) + 6.0f +
+                width(L_HINT_S, "MORE");
+        f32 x = L_LIST_CX - 0.5f * w;
+        x += lbButton_Shape(tm_text, x, L_MORE_Y, L_HINT_S, LB_SHAPE_TRI_DN,
+                            c_dim2) +
+             6.0f;
+        lineC(x, L_MORE_Y, L_HINT_S, &c_dim2, "MORE");
+    }
+}
+
+static void paneTag(f32 y, const char* tag, const GXColor* c)
+{
+    char buf[TAG_LEN + 1];
+    f32 s;
+    copyStr(buf, tag, TAG_LEN);
+    s = fitText(buf, L_ROW_S, L_ROW_MIN_S, L_PANE_W);
+    lineC(L_PANE_X, y, s, c, buf);
+}
+
+static void panePill(f32 y, int best_of)
+{
+    char buf[16];
+    f32 w;
+    putInt(putStr(buf, "BEST OF "), best_of);
+    w = width(L_HINT_S, buf) + 12.0f;
+    lbButton_Box(tm_text, L_PANE_X, y + 13.0f, w, 20.0f,
+                 best_of == 5 ? c_pill5 : c_pill3);
+    lineC(L_PANE_X + 6.0f, y, L_HINT_S, &c_white, buf);
+}
+
+/* STATION n / RELAY / a.b.c.d from the poll header the host fills. */
+static void paneWhereAmI(f32 y)
+{
+    char buf[24];
+    char* p;
+    u32 ip = tm_ph.relay_ip;
+    putInt(putStr(buf, "STATION "), tm_ph.station);
+    lineC(L_PANE_X, y, L_HINT_S, &c_dim2, buf);
+    if (ip == 0) {
+        return;
+    }
+    lineC(L_PANE_X, y + 24.0f, L_HINT_S, &c_dim2, "RELAY");
+    p = putInt(buf, (int) (ip >> 24));
+    p = putStr(p, ".");
+    p = putInt(p, (int) ((ip >> 16) & 0xFF));
+    p = putStr(p, ".");
+    p = putInt(p, (int) ((ip >> 8) & 0xFF));
+    p = putStr(p, ".");
+    putInt(p, (int) (ip & 0xFF));
+    lineC(L_PANE_X, y + 48.0f, 0.45f, &c_dim2, buf);
+    putInt(putStr(buf, "PORT "), tm_ph.relay_port);
+    lineC(L_PANE_X, y + 72.0f, 0.45f, &c_dim2, buf);
+}
+
+static void drawPane(void)
+{
+    const struct set_entry* set = NULL;
+    char round[ROUND_LEN + 1];
+
+    switch (tm_state) {
+    case TM_LIST:
+        if (tm_nview == 0) {
+            lineC(L_PANE_X, 126.0f, L_HINT_S, &c_dim2, "NO SETS");
+            paneWhereAmI(174.0f);
+            return;
+        }
+        set = &tm_sets[tm_view[tm_sel]];
+        copyStr(round, set->round, ROUND_LEN);
+        wrap2(L_PANE_X, 126.0f, 24.0f, L_PANE_S, 0.40f, L_PANE_W, &c_dim, round);
+        paneTag(186.0f, set->p1_tag, &c_yel);
+        lineC(L_PANE_X, 214.0f, L_HINT_S, &c_dim, "VS");
+        paneTag(238.0f, set->p2_tag, &c_yel);
+        panePill(282.0f, set->best_of);
+        if (set->state != 0) {
+            dotLabel(L_PANE_X, 312.0f, L_HINT_S, &c_amb, "PLAYING HERE");
+        } else {
+            dotLabel(L_PANE_X, 312.0f, L_HINT_S, &c_grn, "READY");
+        }
+        lbButton_LineC(tm_text, L_PANE_X, 344.0f, L_HDR_S, &c_white, "#A START");
+        break;
+    case TM_CONFIRM:
+    case TM_STARTING:
+        set = &tm_sets[tm_chosen];
+        lbButton_Box(tm_scrim, L_PANE_BOX_X, L_PANE_BOX_Y, L_PANE_BOX_W,
+                     L_PANE_BOX_H, c_tint);
+        lineC(L_PANE_X, 126.0f, 0.62f, &c_yel, "START THIS");
+        lineC(L_PANE_X, 152.0f, 0.62f, &c_yel, "SET?");
+        paneTag(190.0f, set->p1_tag, &c_white);
+        lineC(L_PANE_X, 218.0f, L_HINT_S, &c_dim, "VS");
+        paneTag(242.0f, set->p2_tag, &c_white);
+        panePill(284.0f, set->best_of);
+        if (tm_state == TM_CONFIRM) {
+            lbButton_LineC(tm_text, L_PANE_X, 340.0f, L_HINT_S, &c_white,
+                           "#A YES   #B BACK");
+        } else {
+            lineC(L_PANE_X, 340.0f, L_HINT_S, &c_dim, "STARTING");
+            pulse(L_PANE_X + width(L_HINT_S, "STARTING") + 30.0f, 340.0f,
+                  L_HINT_S);
+        }
+        break;
+    case TM_LOADING:
+        paneWhereAmI(126.0f);
+        break;
+    case TM_ERROR:
+        paneWhereAmI(126.0f);
+        dotLabel(L_PANE_X, 236.0f, L_HINT_S, &c_red,
+                 tm_err_link ? "NO LINK" : "REFUSED");
+        break;
+    default:
+        break;
+    }
 }
 
 static void redraw(void)
 {
-    u8 view[MAX_SETS];
-    int n, i;
-    f32 y;
-    char buf[64];
-
     destroyText();
-    tm_text = HSD_SisLib_803A6754(lbButton_Font(), tm_ctx);
-    tm_text->default_kerning = 1;
+    tm_scrim = newText(L_SCRIM_A);
+    tm_bar = newText(L_BAR_A);
+    tm_text = newText(255);
 
-    centred(50.0f, 0.72f, "TOURNAMENT");
+    lineC(L_TITLE_X, L_TITLE_Y, L_TITLE_S, &c_white, "TOURNAMENT");
+    lbButton_Box(tm_scrim, L_LIST_X, L_LIST_Y, L_LIST_W, L_LIST_H, c_scrim);
+    lbButton_Box(tm_scrim, L_PANE_BOX_X, L_PANE_BOX_Y, L_PANE_BOX_W,
+                 L_PANE_BOX_H, c_scrim);
 
     switch (tm_state) {
     case TM_LOADING:
-        line(TM_MARGIN_X, 150.0f, 0.6f, "LOADING...");
-        break;
-    case TM_STARTING:
-        line(TM_MARGIN_X, 150.0f, 0.6f, "STARTING SET...");
+        centredAt(L_LIST_CX, 214.0f, 0.62f, &c_dim, "LOADING SETS");
+        pulse(L_LIST_CX, 250.0f, 0.62f);
+        centredAt(L_HINT_CX, L_HINT_Y, L_HINT_S, &c_white, "#B MENU");
         break;
     case TM_LIST:
-        n = filteredSets(view);
-        if (tm_filter == 0) {
-            lbButton_Line(tm_text, TM_MARGIN_X, 98.0f, 0.5f,
-                          "FILTER: ALL   #L #R");
+        drawHeader();
+        if (tm_nview == 0) {
+            centredAt(L_LIST_CX, 200.0f, 0.62f, &c_dim, "NO SETS RIGHT NOW");
+            centredAt(L_LIST_CX, 236.0f, L_HINT_S, &c_dim2,
+                      "#Y REFRESHES THE LIST");
         } else {
-            buf[0] = tm_filter;
-            buf[1] = '\0';
-            HSD_SisLib_803A7548(
-                tm_text,
-                HSD_SisLib_803A6B98(tm_text, TM_MARGIN_X, 98.0f, "FILTER: %s",
-                                    buf),
-                0.5f, 0.5f);
-            lbButton_Line(tm_text,
-                          TM_MARGIN_X + lbButton_Measure(0.5f, "FILTER: ALL"),
-                          98.0f, 0.5f, "   #L #R");
+            drawList(false);
         }
-        if (n == 0) {
-            line(TM_MARGIN_X, 150.0f, 0.6f, "NO SETS - PRESS Y TO REFRESH");
-        }
-        y = 134.0f;
-        for (i = tm_top; i < n && i < tm_top + TM_ROWS_VISIBLE; i++) {
-            drawSetLine(y, i == tm_sel, &tm_sets[view[i]]);
-            y += 27.0f;
-        }
-        /* Hint bar, centred exactly, with button icons. */
-        centred(394.0f, 0.36f,
-                "#A START   #Z FRIENDLIES   #Y REFRESH   #B MENU");
+        centredAt(L_HINT_CX, L_HINT_Y, L_HINT_S, &c_white,
+                  "#Z FRIENDLIES   #Y REFRESH   #B MENU");
         break;
-    case TM_CONFIRM: {
-        const struct set_entry* set = &tm_sets[tm_chosen];
-        line(TM_MARGIN_X, 120.0f, 0.62f, "START THIS SET?");
-        drawSetLine(180.0f, false, set);
-        centred(394.0f, 0.36f, "#A YES    #B BACK");
+    case TM_CONFIRM:
+    case TM_STARTING:
+        /* A second scrim over the first dims the list further (two 59%
+         * layers ~ 83%); the rows go muted as well. */
+        lbButton_Box(tm_scrim, L_LIST_X, L_LIST_Y, L_LIST_W, L_LIST_H, c_scrim);
+        drawHeader();
+        drawList(true);
+        if (tm_state == TM_CONFIRM) {
+            centredAt(L_HINT_CX, L_HINT_Y, L_HINT_S, &c_dim,
+                      "CHECK BOTH TAGS FIRST");
+        }
         break;
-    }
     case TM_ERROR:
-        line(TM_MARGIN_X, 130.0f, 0.62f, "ERROR");
-        line(TM_MARGIN_X, 174.0f, 0.52f, tm_errmsg);
-        centred(394.0f, 0.36f, "#A RETRY    #B BACK");
+        lineC(L_TEXT_X, 150.0f, 0.62f, &c_red,
+              tm_err_link ? "NO LINK TO THE RELAY" : "THE RELAY SAID NO");
+        wrap2(L_TEXT_X, 190.0f, 26.0f, L_HDR_S, 0.45f, L_LIST_W - 24.0f, &c_white,
+              tm_errmsg);
+        lineC(L_TEXT_X, 262.0f, 0.45f, &c_dim,
+              tm_count > 0 ? "YOUR LIST IS STILL HERE" : "NO SETS LOADED YET");
+        lineC(L_TEXT_X, 286.0f, 0.45f, &c_dim, "TELL THE TO IF THIS REPEATS");
+        centredAt(L_HINT_CX, L_HINT_Y, L_HINT_S, &c_white,
+                  "#A RETRY   #B BACK");
+        break;
+    default:
         break;
     }
+    drawPane();
 }
+
+/* ------------------------------------------------------------ relay */
 
 static void fail(const char* msg)
 {
     copyStr(tm_errmsg, msg, MSG_LEN);
+    tm_err_link = true;
     tm_state = TM_ERROR;
     tm_dirty = true;
 }
 
 static void failFromResp(const struct relay_resp* resp)
 {
-    memcpy(tm_errmsg, resp->msg, MSG_LEN);
-    tm_errmsg[MSG_LEN] = '\0';
+    copyStr(tm_errmsg, resp->msg, MSG_LEN);
     if (tm_errmsg[0] == '\0') {
         copyStr(tm_errmsg, "RELAY ERROR", MSG_LEN);
     }
+    tm_err_link = false;
     tm_state = TM_ERROR;
     tm_dirty = true;
 }
@@ -389,10 +918,15 @@ static void acceptList(const struct lbRelayExi_PollBuf* r)
     }
     tm_count = count;
     memcpy(tm_sets, list->sets, count * sizeof(struct set_entry));
-    tm_sel = 0;
-    tm_top = 0;
-    tm_filter = 0;
     tm_state = TM_LIST;
+    /* Keep the filter if it still matches something, and the cursor on the
+     * set it was on (a refresh must not lose the player's place). */
+    buildView();
+    if (tm_nview == 0 && tm_filter != 0) {
+        tm_filter = 0;
+        buildView();
+    }
+    selectSet(tm_keep_id);
     tm_dirty = true;
 }
 
@@ -405,6 +939,9 @@ static void pollRelay(void)
         fail("EXI ERROR");
         return;
     }
+    /* Every poll image starts with where we are (host-filled, even while the
+     * relay is silent) - keep the latest for the side pane. */
+    tm_ph = lbRelayExi_Response()->ph;
     if (state == RELAY_ERROR) {
         fail("RELAY LINK ERROR");
         return;
@@ -438,15 +975,93 @@ static void pollRelay(void)
     }
 }
 
+/* ------------------------------------------------------------ think */
+
+static void moveCursor(int delta)
+{
+    int v = (int) tm_sel + delta;
+    if (v < 0) {
+        v = 0;
+    }
+    if (v > tm_nview - 1) {
+        v = tm_nview - 1;
+    }
+    if (v != (int) tm_sel) {
+        sfxMove();
+        tm_sel = (u16) v;
+        ensureVisible();
+        tm_dirty = true;
+    }
+}
+
+static void listInputs(u64 buttons)
+{
+    u32 pressed = gm_GetButtonsTriggered(4);
+
+    if (pressed & PAD_TRIGGER_Z) {
+        /* Friendlies: enter the CSS with no set active, so nothing is
+         * reported. B on the CSS still returns here (kiosk routing). */
+        sfxForward();
+        lbTourney_ClearCurrent();
+        tm_state = TM_OFF;
+        mn_80229860(GM_VS);
+        return;
+    }
+    if (pressed & PAD_BUTTON_Y) {
+        /* Refresh; the cursor goes back onto the same set afterwards. */
+        sfxForward();
+        tm_keep_id = tm_nview > 0 ? tm_sets[tm_view[tm_sel]].set_id : 0;
+        sendList();
+        return;
+    }
+    if (buttons & MenuInput_Back) {
+        sfxBack();
+        exitToMainMenu();
+        return;
+    }
+    if ((buttons & MenuInput_Confirm) && tm_nview > 0) {
+        sfxForward();
+        tm_chosen = tm_view[tm_sel];
+        tm_state = TM_CONFIRM;
+        tm_dirty = true;
+    } else if (pressed & PAD_BUTTON_X) {
+        /* Jump to the set this station is playing (back from a game), else
+         * to the top. */
+        int v, target = 0;
+        for (v = 0; v < tm_nview; v++) {
+            if (tm_sets[tm_view[v]].state != 0) {
+                target = v;
+                break;
+            }
+        }
+        moveCursor(target - (int) tm_sel);
+    } else if (buttons & MenuInput_Up) {
+        moveCursor(-1);
+    } else if (buttons & MenuInput_Down) {
+        moveCursor(1);
+    } else if (buttons & MenuInput_Left) {
+        moveCursor(-(L_SLOTS - 1));
+    } else if (buttons & MenuInput_Right) {
+        moveCursor(L_SLOTS - 1);
+    } else if (buttons & MenuInput_LTrigger) {
+        sfxMove();
+        stepFilter(-1);
+        tm_dirty = true;
+    } else if (buttons & MenuInput_RTrigger) {
+        sfxMove();
+        stepFilter(1);
+        tm_dirty = true;
+    }
+}
+
 void mnTourney_Think(HSD_GObj* gobj)
 {
-    u8 view[MAX_SETS];
-    int n;
     u64 buttons;
     UNUSED u8 _pad[8];
 
     (void) gobj;
     buttons = Menu_GetAllInputs();
+    tm_frame++;
 
     if (tm_ctx < 0) {
         tm_ctx = HSD_SisLib_803A611C(lbButton_Font(), NULL, 9, 0xD, 0, 0xE, 0,
@@ -473,60 +1088,22 @@ void mnTourney_Think(HSD_GObj* gobj)
             exitToMainMenu();
             return;
         }
+        if (tm_state == TM_LOADING && tm_frame % L_PULSE_FRAMES == 0) {
+            tm_dirty = true; /* the dots walk */
+        }
         break;
     case TM_STARTING:
         /* The request is committed; B is ignored until it resolves. */
         pollRelay();
+        if (tm_state == TM_STARTING && tm_frame % L_PULSE_FRAMES == 0) {
+            tm_dirty = true;
+        }
         break;
     case TM_LIST:
-        n = filteredSets(view);
-        if (gm_GetButtonsTriggered(4) & PAD_TRIGGER_Z) {
-            /* Friendlies: enter the CSS with no set active, so nothing is
-             * reported. B on the CSS still returns here (kiosk routing). */
-            sfxForward();
-            lbTourney_ClearCurrent();
-            tm_state = TM_OFF;
-            mn_80229860(GM_VS);
+        buildView();
+        listInputs(buttons);
+        if (tm_state == TM_OFF) {
             return;
-        }
-        if (gm_GetButtonsTriggered(4) & PAD_BUTTON_Y) {
-            /* Refresh the set list (B is now "back to main menu"). */
-            sfxForward();
-            sendList();
-            return;
-        }
-        if (buttons & MenuInput_Back) {
-            sfxBack();
-            exitToMainMenu();
-            return;
-        }
-        if ((buttons & MenuInput_Confirm) && n > 0) {
-            sfxForward();
-            tm_chosen = view[tm_sel];
-            tm_state = TM_CONFIRM;
-            tm_dirty = true;
-        } else if ((buttons & MenuInput_Up) && tm_sel > 0) {
-            sfxMove();
-            tm_sel--;
-            if (tm_sel < tm_top) {
-                tm_top = tm_sel;
-            }
-            tm_dirty = true;
-        } else if ((buttons & MenuInput_Down) && n > 0 && tm_sel < n - 1) {
-            sfxMove();
-            tm_sel++;
-            if (tm_sel >= tm_top + TM_ROWS_VISIBLE) {
-                tm_top = tm_sel - (TM_ROWS_VISIBLE - 1);
-            }
-            tm_dirty = true;
-        } else if (buttons & MenuInput_LTrigger) {
-            sfxMove();
-            stepFilter(-1);
-            tm_dirty = true;
-        } else if (buttons & MenuInput_RTrigger) {
-            sfxMove();
-            stepFilter(1);
-            tm_dirty = true;
         }
         break;
     case TM_CONFIRM:
@@ -542,8 +1119,10 @@ void mnTourney_Think(HSD_GObj* gobj)
     case TM_ERROR:
         if (buttons & MenuInput_Back) {
             sfxBack();
-            if (tm_retry_cmd == CMD_START_SET) {
+            if (tm_count > 0) {
                 tm_state = TM_LIST;
+                buildView();
+                ensureVisible();
                 tm_dirty = true;
             } else {
                 exitToMainMenu();
@@ -675,5 +1254,7 @@ void mnTourney_MenuSceneExit(void* exit_data)
     /* The scene teardown frees the canvas and text GObjs; just forget them. */
     tm_ctx = -1;
     tm_text = NULL;
+    tm_bar = NULL;
+    tm_scrim = NULL;
     tm_state = TM_OFF;
 }

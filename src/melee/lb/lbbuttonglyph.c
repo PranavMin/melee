@@ -20,12 +20,19 @@
  * never loaded by the game, so it is ours; the scene teardown clears the
  * table, so it is re-installed whenever a kiosk text context is created. */
 #define TM_FONT 4
-enum lbButton_Shape { SH_DISC, SH_RSQ, SH_PILL, SH_CROSS, SH_COUNT };
+#define SH_DISC LB_SHAPE_DISC
+#define SH_RSQ LB_SHAPE_RSQ
+#define SH_PILL LB_SHAPE_PILL
+#define SH_CROSS LB_SHAPE_CROSS
+#define SH_COUNT LB_SHAPE_COUNT
 static const u8 shape_tex[SH_COUNT][512] ATTRIBUTE_ALIGN(32) = {
 #include "lbbuttonglyph_shapes.inc"
 };
 /* {left, right} blank columns of each shape (tools/gen_button_glyphs.py). */
-static const u8 shape_kern[SH_COUNT][2] = { { 2, 2 }, { 3, 3 }, { 1, 1 }, { 2, 2 } };
+static const u8 shape_kern[SH_COUNT][2] = {
+    { 2, 2 }, { 3, 3 }, { 1, 1 }, { 2, 2 }, /* DISC RSQ PILL CROSS */
+    { 0, 0 }, { 4, 4 }, { 4, 4 }, { 7, 5 }, /* BLOCK TRI_UP TRI_DN TRI_RT */
+};
 static const SIS tm_font = { (TextKerning*) shape_tex, (TextGlyphTexture*) shape_kern };
 
 int lbButton_Font(void)
@@ -133,6 +140,11 @@ static char sjisLow(char c)
         return 'H';
     }
     return 0;
+}
+
+bool lbButton_Drawable(char c)
+{
+    return glyphIndex(c) >= 0;
 }
 
 static f32 kernLeft(int g)
@@ -254,6 +266,37 @@ static f32 drawIcon(HSD_Text* text, f32 x, f32 y, f32 s,
     return shapeAdvance(d->shape, s);
 }
 
+f32 lbButton_ShapeAdvance(f32 s, int shape)
+{
+    return (CELL + 2.0f - shape_kern[shape][0] - shape_kern[shape][1]) * s;
+}
+
+f32 lbButton_Shape(HSD_Text* text, f32 x, f32 y, f32 s, int shape, GXColor c)
+{
+    int entry = shapeEntry(text, x, y, shape);
+    HSD_SisLib_803A7548(text, entry, s, s);
+    HSD_SisLib_803A74F0(text, entry, &c);
+    return lbButton_ShapeAdvance(s, shape);
+}
+
+void lbButton_Box(HSD_Text* text, f32 x, f32 y, f32 w, f32 h, GXColor c)
+{
+    /* Per-entry scale is 8.8 fixed point, so a 32-unit cell stretches to any
+     * size up to 8191 px in 1/8 px steps. The block has no blank columns
+     * (left = 0), so its quad starts at pen + 1*sx (hsd_3A76.c:838-842). A
+     * line is measured at least 32 units tall and a glyph is bottom-aligned
+     * to it, so a glyph shorter than that (sy < 1) is drawn 32*(1-sy) below
+     * its entry's y, and a taller one (sy >= 1) starts right at y (seen
+     * 2026-09-25: a 262 px scrim landed 230 px low with the short-glyph
+     * rule). */
+    f32 sx = w / CELL;
+    f32 sy = h / CELL;
+    f32 drop = sy < 1.0f ? CELL * (1.0f - sy) : 0.0f;
+    int entry = shapeEntry(text, x - sx, y - drop, LB_SHAPE_BLOCK);
+    HSD_SisLib_803A7548(text, entry, sx, sy);
+    HSD_SisLib_803A74F0(text, entry, &c);
+}
+
 /* Copies a text run into buf, translating the punctuation the SIS encoder
  * cannot map from ASCII into its Shift-JIS pair. */
 static void encodeRun(char* buf, int cap, const char* str, int n)
@@ -272,9 +315,9 @@ static void encodeRun(char* buf, int cap, const char* str, int n)
     buf[o] = '\0';
 }
 
-/* Shared walker: draw == NULL measures only. */
-static f32 walk(HSD_Text* text, f32 x, f32 y, f32 s, const char* fmt,
-                bool draw)
+/* Shared walker: draw == NULL measures only; ink colours the text runs. */
+static f32 walk(HSD_Text* text, f32 x, f32 y, f32 s, const GXColor* ink,
+                const char* fmt, bool draw)
 {
     f32 pen = x;
     const char* p = fmt;
@@ -294,6 +337,10 @@ static f32 walk(HSD_Text* text, f32 x, f32 y, f32 s, const char* fmt,
                 encodeRun(buf, sizeof(buf), run, n);
                 entry = HSD_SisLib_803A6B98(text, pen, y, "%s", buf);
                 HSD_SisLib_803A7548(text, entry, s, s);
+                if (ink != NULL) {
+                    GXColor c = *ink;
+                    HSD_SisLib_803A74F0(text, entry, &c);
+                }
             }
             pen += textWidth(run, n, s);
             p += n;
@@ -313,10 +360,16 @@ static f32 walk(HSD_Text* text, f32 x, f32 y, f32 s, const char* fmt,
 
 f32 lbButton_Line(HSD_Text* text, f32 x, f32 y, f32 scale, const char* fmt)
 {
-    return walk(text, x, y, scale, fmt, true);
+    return walk(text, x, y, scale, NULL, fmt, true);
+}
+
+f32 lbButton_LineC(HSD_Text* text, f32 x, f32 y, f32 scale,
+                   const GXColor* ink, const char* fmt)
+{
+    return walk(text, x, y, scale, ink, fmt, true);
 }
 
 f32 lbButton_Measure(f32 scale, const char* fmt)
 {
-    return walk(NULL, 0.0f, 0.0f, scale, fmt, false);
+    return walk(NULL, 0.0f, 0.0f, scale, NULL, fmt, false);
 }

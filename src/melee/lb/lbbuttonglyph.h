@@ -5,6 +5,20 @@
 
 #include <sysdolphin/baselib/sislib.h>
 
+/* Shape glyphs in the module's SIS font slot (tools/gen_button_glyphs.py):
+ * the button bodies, plus flat UI shapes for the kiosk menus. */
+enum lbButton_Shape {
+    LB_SHAPE_DISC,
+    LB_SHAPE_RSQ,
+    LB_SHAPE_PILL,
+    LB_SHAPE_CROSS,
+    LB_SHAPE_BLOCK, /* solid cell: stretched into bars and scrims */
+    LB_SHAPE_TRI_UP,
+    LB_SHAPE_TRI_DN,
+    LB_SHAPE_TRI_RT,
+    LB_SHAPE_COUNT
+};
+
 /* Kiosk overlay text with inline GameCube button icons.
  *
  * fmt is ASCII (what HSD_SisLib_803A6B98 accepts) plus icon markers:
@@ -23,7 +37,24 @@
  * line: x = (640 - lbButton_Measure(s, fmt)) / 2. Text segments keep the
  * HSD_Text's default colour. */
 f32 lbButton_Line(HSD_Text* text, f32 x, f32 y, f32 scale, const char* fmt);
+/* Same, with the text runs in colour ink (NULL = the text's default). */
+f32 lbButton_LineC(HSD_Text* text, f32 x, f32 y, f32 scale,
+                   const GXColor* ink, const char* fmt);
 f32 lbButton_Measure(f32 scale, const char* fmt);
+
+/* True when the SIS encoder (plus our Shift-JIS translations) can draw c;
+ * anything else is swallowed as a lead byte and eats the next character. */
+bool lbButton_Drawable(char c);
+
+/* One shape glyph at pen x / entry y with the SIS line semantics of a letter
+ * of scale s (its ink centred on that text line), colour c; returns the
+ * advance. Alpha comes from the HSD_Text (text_color.a), not from c. */
+f32 lbButton_Shape(HSD_Text* text, f32 x, f32 y, f32 s, int shape, GXColor c);
+f32 lbButton_ShapeAdvance(f32 s, int shape);
+
+/* A flat rectangle, top-left (x, y), w by h screen pixels: the solid block
+ * glyph stretched by per-entry x/y scale. Alpha is the HSD_Text's. */
+void lbButton_Box(HSD_Text* text, f32 x, f32 y, f32 w, f32 h, GXColor c);
 
 /* Every kiosk text context and text object must be created on this SIS font
  * index (a slot the game never loads) and the font installed right after the

@@ -76,8 +76,29 @@ Legend: each item is something *you* verify by eye on the running build.
 
 ## 3. Text & layout (SIS menu text)
 
-- [ ] **Title and bottom hint bar are centered** and sit fully inside the border; text fits.
-      *Centering x-values are hardcoded estimates per string — nudge if off.*
+- [ ] **Set list is the two-pane screen (2026-09-25):** TOURNAMENT top-left in the
+      panel's title tab; header `L ALL SETS R` + position `1-8 / 24`; rows `tag VS tag`
+      on one VS axis (x 208) under round-name headers; the cursor row yellow on a
+      translucent light-blue bar with a yellow left edge; the right pane shows the
+      highlighted set (round, tags, BEST OF n, READY / PLAYING HERE, A START); hints
+      `Z FRIENDLIES  Y REFRESH  B MENU` centred between the panel's bottom corner boxes.
+      *Every position is a `L_*` constant at the top of mntourney.c; measured centring
+      via `lbButton_Measure`, never by eye. If the two scrims are missing or sit low,
+      the stretched-block rule broke: a glyph taller than a line starts AT its entry
+      y, a shorter one 32*(1-sy) below it (lbbuttonglyph.c lbButton_Box).*
+- [ ] **Long list:** with more than 8 slots the header shows a small up-triangle after the
+      position once scrolled, `MORE` with a down-triangle sits inside the scrim under the
+      last row, left/right on the stick pages by 7, X jumps to the set marked PLAYING HERE
+      (amber), Y keeps the cursor on the same set after the reload. *Tested with the
+      400-set fake (56 shown, the wire cap).*
+- [ ] **Confirm / error stay in the frame:** A dims the list and asks `START THIS SET?` in
+      the pane with both tags and `A YES  B BACK`, the hint bar says CHECK BOTH TAGS FIRST;
+      a dead relay shows `NO LINK TO THE RELAY` + the message + `YOUR LIST IS STILL HERE`
+      or `NO SETS LOADED YET`, and the pane shows `STATION n / RELAY / a.b.c.d / PORT p`
+      with a red `NO LINK` dot (a relay-reported error says `THE RELAY SAID NO` / `REFUSED`).
+      *Station/relay come from `exi_poll_hdr`, which the kernel/forwarder fill on every
+      poll; Dolphin shows station 0 (design R10). The confirm view has not been captured
+      in the dev loop (no controller input there) - eyeball it on the Wii.*
 - [ ] **No missing/garbage glyphs.** *The SIS text encoder (hsd_3A64.c) maps only
       these ASCII bytes: space `" ' , - . : 0-9 A-Z a-z`. Any other ASCII byte (`+ ( ) /
       [ ] % & * @ # $ = < > ? !`) is taken as a Shift-JIS lead byte and eats the next
@@ -88,7 +109,14 @@ Legend: each item is something *you* verify by eye on the running build.
       `?` = `"H"`, `x` (times) = `"~"`, `=` = `""`, `%` = `""`.
       There are NO controller-button glyphs in the font (digits, Latin, kana, symbols,
       24 kanji only) - icons need textures (design.md sec 12).*
-- [ ] Set-list rows read correctly: `> ROUND  NAME VS NAME  BOx` with proper spacing.
+- [ ] **Round names are full and grouped:** `WINNERS QUARTER-FINAL`, `LOSERS ROUND 1`
+      as headers, never `WQF`; a header appears wherever the round changes going down the
+      list (the relay sorts earliest round first). In the pane a long round name wraps to
+      two lines only when it cannot shrink onto one (`WINNERS ROUND 1` stays one line).
+      *Wire: `set_entry.round` is 24 chars of upper-cased fullRoundText (protocol.yaml).*
+- [ ] **No swallowed characters:** `1-8 / 24` shows its slash; every kiosk string goes
+      through the icon walker (`lbButton_LineC`) so `/ + ( ) ! ?` are translated, and
+      wire strings pass `copyStr`, which blanks anything undrawable and `#`.
 
 ## 4. Venue mods - the venue's own gecko codesets, NOT our source (since 2026-09-24)
 
@@ -127,7 +155,7 @@ same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutra
 - [ ] Set list **populates from the relay** (matches the sets on start.gg). *An empty
       list while the relay shows sets = game↔relay protocol mismatch (e.g. an EXI command-byte
       skew from a DOL built before a protocol renumber) — rebuild game and forwarder together.*
-- [ ] Select a set → **A starts it** → lands on the CSS.
+- [ ] Select a set → **A asks in the pane, A again starts it** → lands on the CSS.
 - [ ] **C-stick score binds** work (Z + C-left = P1, C-right = P2, C-down = undo,
       C-up held = end set) from **any controller port**. *Binds are C-stick, not D-pad —
       some players have no D-pad.*
