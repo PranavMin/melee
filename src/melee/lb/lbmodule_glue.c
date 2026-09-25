@@ -66,3 +66,47 @@ void tm_bootOnLoad(GameModeState* scene)
     d->x0 = 0;
     d->mode_id = GM_MENU;
 }
+
+/* Menu light colour: mn_8022C010 (mnmain.c) maps the current menu kind to
+ * one of five frame colours by a switch; the hijacked Trophies row maps to
+ * 2 (green). Replaced by a branch over its first instruction: same mapping,
+ * except the Tournament menu takes the main menu's plain blue (0), which is
+ * what the old out-of-table kind happened to get. */
+int tm_menuLightColor(int menu_kind, int selection)
+{
+    if (menu_kind == MENU_KIND_MAIN) {
+        return selection;
+    }
+    switch (menu_kind) {
+    case MENU_KIND_VS:
+    case MENU_KIND_11:
+    case MENU_KIND_SPECIAL:
+    case MENU_KIND_RULES:
+    case MENU_KIND_14:
+    case MENU_KIND_RULES_EXTRA:
+    case MENU_KIND_RULES_ITEMS:
+    case MENU_KIND_RULES_STAGE:
+    case MENU_KIND_NAME_ENTRY:
+        return 1;
+    case MENU_KIND_SETTINGS:
+    case MENU_KIND_SETTINGS_RUMBLE:
+    case MENU_KIND_SETTINGS_SOUND:
+    case MENU_KIND_DISPLAY:
+    case MENU_KIND_22:
+    case MENU_KIND_SETTINGS_LANG:
+    case MENU_KIND_SETTINGS_ERASE:
+        return 3;
+    case MENU_KIND_DATA:
+    case MENU_KIND_DATA_SNAP:
+    case MENU_KIND_DATA_ARCHIVES:
+    case MENU_KIND_27:
+    case MENU_KIND_RECORDS:
+    case MENU_KIND_DATA_SPECIAL:
+    case MENU_KIND_RECORDS_VS:
+    case MENU_KIND_RECORDS_BONUS:
+    case MENU_KIND_RECORDS_MISC:
+        return 4;
+    default: /* 1P, REG, EVENT, 8, STADIUM, 10, MULTI_VS - and TOY = ours */
+        return 0;
+    }
+}
