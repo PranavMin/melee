@@ -245,7 +245,20 @@ same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutra
       icon baseline level with the text, the hint bar not clipped at either edge, and
       the CSS hint still right-anchored where the user put it (right edge of the old
       `ZX FOR HANDWARMER`).*
-- [ ] **CSS overlay layout (v31, tuned live by the user):** score `MANGO P1  0 - 0  P3
+- [ ] **The score is in the CSS's own rules banner** (the chevron box under MELEE / VS that
+      vanilla fills with "4-man survival test!"): `MANGO P1  0 - 0  P3 ZAIN`, centred, shrunk
+      to fit if long; it updates on every score change and is back to vanilla text in
+      friendlies. *lbtourney.c writeBanner: font 0's premade slot 0x4A and the text bound to
+      it are repointed at a module buffer (vanilla opcodes kept, then glyph codes 0x2000 +
+      atlas index). Garbage glyphs = a wrong code table; crushed letters = the encoder's
+      fixed-width "0A F4" run wrapped around letters; text stuck at "4-man survival test!"
+      = the slot was not retaken after the CSS reloaded its archive.*
+- [ ] **CSS lines have shadows and the status is coloured:** SENDING dim, SCORE SENT green,
+      SEND FAILED red, auto-score notes amber; the handwarmer clock in a match has the same
+      shadow. *Three SIS texts per overlay; the CSS scene's SIS pool is raised 9 -> 18 KB
+      (`word 0x801A3F9C 0x38604800`), so a "Memory Empty" halt on the CSS means that hook.*
+- [ ] **(superseded 2026-09-25: the score line moved into the banner; hint and status keep
+      these positions) CSS overlay layout (v31, tuned live by the user):** score `MANGO P1  0 - 0  P3
       ZAIN` top centre (x 188, y -4, 0.62); hint `Z + X FOR HANDWARMER` (the `+` is the SJIS escape `{`, v34) bottom right
       (x 456, y 446, 0.43); status (`SENDING... / SCORE SENT / SEND FAILED`) bottom left (x 2,
       y 446, 0.45). (v32)
