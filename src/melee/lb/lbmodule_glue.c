@@ -69,9 +69,12 @@ void tm_bootOnLoad(GameModeState* scene)
 
 /* Menu light colour: mn_8022C010 (mnmain.c) maps the current menu kind to
  * one of five frame colours by a switch; the hijacked Trophies row maps to
- * 2 (green). Replaced by a branch over its first instruction: same mapping,
- * except the Tournament menu takes the main menu's plain blue (0), which is
- * what the old out-of-table kind happened to get. */
+ * 2 (green). The function is inlined into the light GObj's create and
+ * per-frame lerp (their jump tables are patched directly, see
+ * tools/module_hooks.txt); this replacement, branched over the out-of-line
+ * copy's first instruction, covers the one remaining bl caller with the same
+ * mapping, except that the Tournament menu takes the main menu's plain blue
+ * (0). */
 int tm_menuLightColor(int menu_kind, int selection)
 {
     if (menu_kind == MENU_KIND_MAIN) {
