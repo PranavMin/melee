@@ -144,6 +144,27 @@ Legend: each item is something *you* verify by eye on the running build.
       annotates the CSS score line with the port: `MANGO P1  0 - 0  P3 ZAIN`. *Written
       into persistent nametag slots 0/1 at START_SET (`writeNametag`), overwriting
       whatever the kiosk card had there. Friendlies (Z) leave the tags as they were.*
+- [ ] **Auto-score at game end (v37).** Finish a game (KO or time-out) and, back on
+      the CSS, the score line already counts it, `SENDING... / SCORE SENT` runs, and the
+      status shows `GAME n TO <TAG>` for 5 s. *Read from the vanilla GS_VS exit data's
+      MatchEnd (outcome + per-slot standings) in `lbTourney_MatchExit`, applied on the
+      first CSS frame. Winner = more stocks, else less percent. Not scored, with the reason
+      on the status line: LRA+Start (`NO CONTEST - NOT SCORED`), a handwarmer, not exactly
+      two human players (`AUTO-SCORE NEEDS 2 PLAYERS`), nobody identifiable (`PICK A TAG
+      TO AUTO-SCORE`), exact tie (`TIE - SCORE IT MANUALLY`). The C-stick binds remain for
+      corrections - do NOT also flick after an auto-scored game (undo with Z + C-down if
+      you did).*
+- [ ] **Characters and stage reported (v38):** after an auto-scored game the start.gg
+      set's game row shows both characters and the stage (check the set page or the
+      relay audit log). *Filled from `MatchEnd.player_standings[].ckind` per entrant and
+      `gm_GetStartMeleeRules()->stkind` at the VS exit; `game_result.stage` is the old pad
+      byte (wire layout unchanged, header re-synced from protocol.yaml). A hand-scored
+      correction sends zeros = winner only; the relay omits unmapped values rather than
+      failing.*
+- [ ] **Who is who, inferred (v37):** with exactly two human doors, one picked tag
+      identifies both players (the other door is the other entrant) - the score line
+      shows both port labels after one pick, and auto-score works off one tag. *Rule in
+      `assignEntrants`; CPU doors are ignored (`mnCharSel_PortSlotType`).*
 - [ ] **Button icons in the overlays (v35).** The set-list hint bar reads
       `(A) START  (Z) FRIENDLIES  (Y) REFRESH  (B) MENU` with real GameCube-coloured
       button discs (A green, B red, X/Y light grey, Z purple square, L/R grey squares,

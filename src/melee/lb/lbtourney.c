@@ -75,6 +75,13 @@ static bool css_dirty;
 static bool handwarmer;
 static bool stage_sel_forced; /* rules->stage_sel is Random for this start */
 
+/* Auto-score state (see autoScoreFromMatch below). */
+static int auto_pending;      /* entrant (1/2) who won the game just played */
+static u8 auto_chars[2];      /* external CharacterKind of entrant 1 and 2 */
+static u8 auto_stage;         /* internal StKind the game was played on */
+static char auto_note[40];    /* why nothing was scored, or what was */
+static u32 auto_note_frames;  /* frames left showing auto_note */
+
 /* CSS overlay layout. The values are the shipped positions (tuned live by
  * the user, 2026-09-22). Set LB_TOURNEY_LAYOUT_TUNE to 1 to compile the live
  * layout tune mode back in (see tuneInputs): hold L + R on the CSS, D-pad
@@ -176,6 +183,53 @@ static int portWithTag(int slot)
     return -1;
 }
 
+/* Who is who. Nametag slot 0 is entrant 1, slot 1 is entrant 2 (seeded at
+ * START_SET). Rule (user, 2026-09-22): when exactly two people are playing
+ * and only one has picked a tag, the other player is the other entrant.
+ * tags[i] is candidate i's nametag slot; out[i] gets 1, 2 or 0 (unknown). */
+static void assignEntrants(const u8* tags, int n, u8* out)
+{
+    int i;
+    int known = 0;
+    int unknown_i = -1;
+    for (i = 0; i < n; i++) {
+        out[i] = tags[i] == 0 ? 1 : tags[i] == 1 ? 2 : 0;
+        if (out[i] != 0) {
+            known++;
+        } else {
+            unknown_i = i;
+        }
+    }
+    if (n == 2 && known == 1) {
+        out[unknown_i] = 3 - out[1 - unknown_i];
+    }
+}
+
+/* The CSS port playing as `entrant` (1 or 2) by the rule above, or -1. Only
+ * human doors count; the tags of CPU doors cannot be picked anyway. */
+static int entrantPort(int entrant)
+{
+    u8 tags[4];
+    u8 who[4];
+    int ports[4];
+    int n = 0;
+    int port;
+    for (port = 0; port < 4; port++) {
+        if (mnCharSel_PortSlotType(port) == Gm_PKind_Human) {
+            ports[n] = port;
+            tags[n] = mnCharSel_PortNametag(port);
+            n++;
+        }
+    }
+    assignEntrants(tags, n, who);
+    for (port = 0; port < n; port++) {
+        if (who[port] == entrant) {
+            return ports[port];
+        }
+    }
+    return -1;
+}
+
 /* Selection-hand shake: the venue's D-pad rumble hook shoves the port's CSS
  * cursor (CSSCursorData xC, its live X) left by 3 and springs it back so the
  * hand visibly "rumbles" on a toggle. Its spring constants live in unnamed
@@ -236,6 +290,8 @@ void lbTourney_SetCurrent(const struct set_entry* set)
     sent_flash = 0;
     handwarmer = false;
     match_seen = false;
+    auto_pending = 0;
+    auto_note_frames = 0;
     has_set = true;
     css_dirty = true;
     writeNametag(0, cur_set.p1_tag, "P1");
@@ -305,7 +361,14 @@ static void sendEndSet(void)
     css_dirty = true;
 }
 
-static void appendGame(int winner_slot)
+/* Appends a game. Characters are the entrants' external CharacterKind ids
+ * (0 = Captain Falcon, so "unknown" is CHAR_UNKNOWN = 0xFF) and stage the
+ * internal StKind (0 = unknown). A game scored by hand sends unknowns: the CSS
+ * cannot tell which entrant sat where. The auto-score path fills them from
+ * the match standings, where they are authoritative (design.md R13); the
+ * relay omits anything it cannot map rather than rejecting the report. */
+#define CHAR_UNKNOWN 0xFF
+static void appendGame(int winner_slot, u8 p1_char, u8 p2_char, u8 stage)
 {
     struct game_result* game;
     if (game_count >= MAX_GAMES) {
@@ -313,9 +376,9 @@ static void appendGame(int winner_slot)
     }
     game = &games[game_count];
     game->winner_slot = winner_slot;
-    game->p1_char = 0; /* winners only in v1; relay ignores these (R13) */
-    game->p2_char = 0;
-    game->_pad = 0;
+    game->p1_char = p1_char;
+    game->p2_char = p2_char;
+    game->stage = stage;
     game_count++;
     sendReport();
 }
@@ -401,9 +464,9 @@ static void handleInputs(void)
     /* Score / undo fire once per flick: on the edge into a new direction. */
     if (cdir != prev_cdir) {
         if (cdir == CDIR_LEFT) {
-            appendGame(1);
+            appendGame(1, CHAR_UNKNOWN, CHAR_UNKNOWN, 0);
         } else if (cdir == CDIR_RIGHT) {
-            appendGame(2);
+            appendGame(2, CHAR_UNKNOWN, CHAR_UNKNOWN, 0);
         } else if (cdir == CDIR_DOWN) {
             undoGame();
         }
@@ -455,12 +518,92 @@ static void pollRelay(void)
     css_dirty = true;
 }
 
-/* "P3" for the port that picked nametag `slot`, "" if nobody has yet. */
-static const char* portLabel(int slot)
+/* "P3" for the port playing as `entrant` (1 or 2), "" while unknown. */
+static const char* portLabel(int entrant)
 {
     static const char* const labels[4] = { "P1", "P2", "P3", "P4" };
-    int port = portWithTag(slot);
+    int port = entrantPort(entrant);
     return port < 0 ? "" : labels[port];
+}
+
+/* Automatic scoring at game end (design.md sec 12, user 2026-09-22). The
+ * vanilla GS_VS exit fills the scene's MatchEnd (outcome + per-slot standings:
+ * type, nametag, stocks, percent), so lbTourney_MatchExit reads it after the
+ * vanilla handler and decides the game there; the game is appended and sent
+ * on the first CSS frame back (where the relay is polled), unless the game was
+ * a handwarmer. The C-stick binds stay for corrections (undo / re-score). */
+struct lbTourney_EndMelee { /* mirrors gmvs.c EndMeleeData */
+    u32 x0, x4, x8;
+    struct MatchEnd me;
+};
+#define LB_TOURNEY_AUTO_NOTE_FRAMES (5 * 60)
+
+static void setAutoNote(const char* msg)
+{
+    int i;
+    for (i = 0; i < (int) sizeof(auto_note) - 1 && msg[i] != '\0'; i++) {
+        auto_note[i] = msg[i];
+    }
+    auto_note[i] = '\0';
+    auto_note_frames = LB_TOURNEY_AUTO_NOTE_FRAMES;
+}
+
+static void autoScoreFromMatch(const struct MatchEnd* me)
+{
+    int slots[GM_MAX_PLAYERS];
+    u8 tags[GM_MAX_PLAYERS];
+    u8 who[2];
+    int n = 0;
+    int i;
+    int w;
+
+    auto_pending = 0;
+    if (me->outcome == OUTCOME_NO_CONTEST) {
+        setAutoNote("NO CONTEST - NOT SCORED");
+        return;
+    }
+    if (me->outcome != OUTCOME_TIMEOUT && me->outcome != OUTCOME_ELIMINATION &&
+        me->outcome != OUTCOME_TEAM_ELIMINATION)
+    {
+        return;
+    }
+    for (i = 0; i < GM_MAX_PLAYERS; i++) {
+        if (me->player_standings[i].pkind == Gm_PKind_Human) {
+            if (n < GM_MAX_PLAYERS) {
+                slots[n] = i;
+                tags[n] = me->player_standings[i].x4; /* nametag slot */
+            }
+            n++;
+        }
+    }
+    if (n != 2) {
+        setAutoNote("AUTO-SCORE NEEDS 2 PLAYERS");
+        return;
+    }
+    assignEntrants(tags, 2, who);
+    if (who[0] == 0 || who[1] == 0) {
+        setAutoNote("PICK A TAG TO AUTO-SCORE");
+        return;
+    }
+    /* Per-game character and stage (R13): the standings' ckind is the CSS
+     * ckind (external id) and the stage is still in the start rules here. */
+    auto_chars[who[0] - 1] = (u8) me->player_standings[slots[0]].ckind;
+    auto_chars[who[1] - 1] = (u8) me->player_standings[slots[1]].ckind;
+    auto_stage = (u8) gm_GetStartMeleeRules()->stkind;
+    /* Stock mode: the survivor; on time-out more stocks, then less damage. */
+    {
+        const struct MatchPlayerData* a = &me->player_standings[slots[0]];
+        const struct MatchPlayerData* b = &me->player_standings[slots[1]];
+        if (a->stocks != b->stocks) {
+            w = a->stocks > b->stocks ? 0 : 1;
+        } else if (a->percent != b->percent) {
+            w = a->percent < b->percent ? 0 : 1;
+        } else {
+            setAutoNote("TIE - SCORE IT MANUALLY");
+            return;
+        }
+    }
+    auto_pending = who[w];
 }
 
 static void redraw(void)
@@ -516,6 +659,8 @@ static void redraw(void)
         status = "SEND FAILED";
     } else if (sent_flash > 0) {
         status = "SCORE SENT";
+    } else if (auto_note_frames > 0) {
+        status = auto_note; /* what auto-score did, or why it did not */
     } else {
         status = NULL;
     }
@@ -654,7 +799,11 @@ void lbTourney_MatchExit(void* arg)
     vs_ctx = -1;
     vs_text = NULL;
     vs_shown_sec = -1;
+    /* Vanilla first: it fills the exit data's MatchEnd (outcome, standings). */
     gm_Scene_Vs_OnExit(arg);
+    if (has_set && !handwarmer && arg != NULL) {
+        autoScoreFromMatch(&((struct lbTourney_EndMelee*) arg)->me);
+    }
 }
 
 void lbTourney_CSSFrame(void)
@@ -702,9 +851,34 @@ void lbTourney_CSSFrame(void)
             css_dirty = true;
         }
         if (match_seen) {
-            /* Back from a game: a handwarmer flag covered exactly that game. */
+            /* Back from a game: a handwarmer flag covered exactly that game;
+             * a decided game is scored now (sends REPORT_SCORE). */
             match_seen = false;
             handwarmer = false;
+            css_dirty = true;
+            if (auto_pending != 0) {
+                char note[40];
+                char tag[TAG_LEN + 1];
+                int i;
+                const char* src =
+                    auto_pending == 1 ? cur_set.p1_tag : cur_set.p2_tag;
+                appendGame(auto_pending, auto_chars[0], auto_chars[1],
+                           auto_stage);
+                memcpy(tag, src, TAG_LEN);
+                tag[TAG_LEN] = '\0';
+                /* "GAME 3 TO MANGO" */
+                memcpy(note, "GAME ", 5);
+                note[5] = (char) ('0' + game_count);
+                memcpy(note + 6, " TO ", 4);
+                for (i = 0; tag[i] != '\0' && i < TAG_LEN; i++) {
+                    note[10 + i] = tag[i];
+                }
+                note[10 + i] = '\0';
+                setAutoNote(note);
+                auto_pending = 0;
+            }
+        }
+        if (auto_note_frames > 0 && --auto_note_frames == 0) {
             css_dirty = true;
         }
         /* The port <-> nametag pairing changes as players pick tags. */

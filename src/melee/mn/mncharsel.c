@@ -5561,3 +5561,15 @@ bool mnCharSel_TryStartFight(void)
     mnCharSel_804D6CF2 = 0xFF;
     return true;
 }
+
+/* Tournament kiosk: a port's door type on this CSS (Gm_PKind_Human / Cpu /
+ * Demo / NA), so lbtourney.c can tell which ports are actually players when
+ * it infers who is who from the nametags. New function; no matched body is
+ * touched. */
+u8 mnCharSel_PortSlotType(int port)
+{
+    if (port < 0 || port >= 4 || mnCharSel_804D6CB0 == NULL) {
+        return Gm_PKind_NA;
+    }
+    return mnCharSel_804D6CB0->vs.start.players[port].slot_type;
+}

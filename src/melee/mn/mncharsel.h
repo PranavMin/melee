@@ -33,4 +33,5 @@
 f32* mnCharSel_CursorHandOffset(int port);
 u8 mnCharSel_PortNametag(int port);
 bool mnCharSel_TryStartFight(void);
+u8 mnCharSel_PortSlotType(int port);
 #endif
