@@ -1,5 +1,6 @@
 #include "lbtourney.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include <dolphin/pad.h>
@@ -55,6 +56,7 @@ static u32 sent_flash; /* frames left showing the "SENT" confirmation */
  * lbTourney_CSSExit forgets them. */
 static s32 css_ctx = -1;
 static HSD_Text* css_text = NULL;
+static HSD_Text* css_shadow = NULL; /* drop shadows */
 static bool css_dirty;
 
 /* Handwarmer flag (user, 2026-09-22): the next game is a warm-up that does
@@ -100,6 +102,7 @@ static bool match_seen;   /* a GS_VS frame ran since the last CSS frame */
 static u32 match_frames;  /* frames since the match scene began */
 static s32 vs_ctx = -1;   /* in-match SIS overlay, per GS_VS visit */
 static HSD_Text* vs_text = NULL;
+static HSD_Text* vs_shadow = NULL;
 static int vs_shown_sec = -1;
 
 /* Nametag seeding: the set's two tags are written into persistent nametag
@@ -534,17 +537,137 @@ static void autoScoreFromMatch(const struct MatchEnd* me)
     auto_pending = who[w];
 }
 
+/* The set list's look (mntourney.c): translucent navy panels with a light
+ * rim and a 2 px drop shadow under every line. Glyph alpha is per HSD_Text,
+ * so the panel fill, the shadows and the opaque text are three objects. */
+static const GXColor ov_white = { 255, 255, 255, 255 };
+static const GXColor ov_black = { 0, 0, 0, 255 };
+static const GXColor ov_navy = { 18, 28, 72, 255 };
+static const GXColor ov_rim = { 110, 150, 255, 255 };
+static const GXColor ov_dim = { 169, 188, 230, 255 };
+static const GXColor ov_grn = { 94, 224, 138, 255 };
+static const GXColor ov_red = { 255, 106, 92, 255 };
+static const GXColor ov_amb = { 255, 179, 71, 255 };
+#define OV_SHADOW_DX 2.0f
+
+static HSD_Text* newText(s32 ctx, u8 alpha)
+{
+    HSD_Text* t = HSD_SisLib_803A6754(lbButton_Font(), ctx);
+    t->default_kerning = 1;
+    t->text_color.a = alpha;
+    return t;
+}
+
+static void freeText(HSD_Text** t)
+{
+    if (*t != NULL) {
+        HSD_SisLib_803A5CC4(*t);
+        *t = NULL;
+    }
+}
+
+/* A line with its shadow; fmt may carry #A-style icons. */
+static void ovLine(HSD_Text* shadow, HSD_Text* text, f32 x, f32 y, f32 s,
+                   const GXColor* c, const char* fmt)
+{
+    lbButton_LineMono(shadow, x + OV_SHADOW_DX, y + OV_SHADOW_DX, s, &ov_black,
+                      fmt);
+    lbButton_LineC(text, x, y, s, c, fmt);
+}
+
+/* The CSS's own rules banner ("4-man survival test!") shows the score
+ * instead (user, 2026-09-25). The banner is an HSD_Text the CSS binds to
+ * premade string slot 0x4A of font 0 (mncharsel.c, SdSlChr's SIS data:
+ * pos -12/-23.3, box 450x32, centred, shrink-to-fit) and the renderer walks
+ * that slot's bytes every frame. So the slot, and every text bound to it,
+ * are pointed at a buffer of ours: the vanilla leading opcodes are kept, the
+ * score is encoded behind them with the game's own ASCII-to-SIS encoder, and
+ * the box, position, centring and fitting stay exactly vanilla. The CSS
+ * reloads its archive on every visit, so the takeover repeats per visit. */
+#define BANNER_FONT 0
+#define BANNER_SLOT 0x4A
+static u8 banner_buf[256];
+static int banner_prefix;     /* vanilla opcode bytes kept in front */
+static const u8* banner_orig; /* the archive's slot buffer this visit */
+
+/* Byte length of a SIS opcode (HSD_SisLib_803A6478's copy rule). */
+static int sisOpLen(u8 op)
+{
+    switch (op) {
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+    case 14:
+        return 5;
+    case 12:
+        return 4;
+    case 5:
+        return 3;
+    default:
+        return 1;
+    }
+}
+
+static void writeBanner(const char* ascii)
+{
+    u8** table = (u8**) HSD_SisLib_804D1124[BANNER_FONT];
+    HSD_Text* t;
+    u8* dst;
+
+    if (table == NULL) {
+        return;
+    }
+    if (table[BANNER_SLOT] != banner_buf) {
+        const u8* p = table[BANNER_SLOT];
+        dst = banner_buf;
+        while (*p != 0 && *p < 0x20 && dst - banner_buf < 64) {
+            int n = sisOpLen(*p);
+            memcpy(dst, p, n);
+            dst += n;
+            p += n;
+        }
+        banner_prefix = (int) (dst - banner_buf);
+        banner_orig = table[BANNER_SLOT];
+        table[BANNER_SLOT] = banner_buf;
+    }
+    /* Plain glyph codes, no opcodes: the text's own kerning (the banner has
+     * default_kerning = 1) spaces every glyph proportionally. The game's
+     * encoder (HSD_SisLib_803A67EC) was not used because it wraps digits and
+     * spaces in its fixed-width "0A F4" run and drops out of it for '-', so
+     * the dash of "0 - 0" sat in a full cell; and wrapping everything in
+     * that run crushes letters into 20-unit cells. */
+    dst = banner_buf + banner_prefix;
+    for (; *ascii != '\0' && dst < banner_buf + sizeof(banner_buf) - 3; ascii++) {
+        int g = lbButton_GlyphCode(*ascii);
+        if (g >= 0) {
+            *dst++ = (u8) (g >> 8);
+            *dst++ = (u8) g;
+        }
+    }
+    *dst = 0;
+    /* Re-bind the banner text(s) so the renderer reads our buffer afresh. */
+    for (t = HSD_SisLib_804D7978; t != NULL; t = t->next) {
+        if (t->font_idx == BANNER_FONT &&
+            ((const u8*) t->sis_buffer == banner_orig ||
+             (u8*) t->sis_buffer == banner_buf))
+        {
+            HSD_SisLib_803A6368(t, BANNER_SLOT);
+        }
+    }
+}
+
 static void redraw(void)
 {
     char p1[TAG_LEN + 1];
     char p2[TAG_LEN + 1];
     int entry;
     const char* status;
+    const GXColor* status_ink;
 
-    if (css_text != NULL) {
-        HSD_SisLib_803A5CC4(css_text);
-        css_text = NULL;
-    }
+    freeText(&css_text);
+    freeText(&css_shadow);
     if (!has_set) {
         return;
     }
@@ -553,8 +676,9 @@ static void redraw(void)
     memcpy(p2, cur_set.p2_tag, TAG_LEN);
     p2[TAG_LEN] = '\0';
 
-    css_text = HSD_SisLib_803A6754(lbButton_Font(), css_ctx);
-    css_text->default_kerning = 1;
+    css_shadow = newText(css_ctx, 190);
+    css_text = newText(css_ctx, 255);
+    (void) entry;
 
     /* Handwarmer hint (bottom right) with button icons: the bind when off,
      * the armed state when on. The user placed the plain "ZX FOR HANDWARMER"
@@ -565,38 +689,45 @@ static void redraw(void)
         f32 right = el[EL_HINT].x + lbButton_Measure(s, "ZX FOR HANDWARMER");
         const char* fmt =
             handwarmer ? "#Z+#X CANCELS HANDWARMER" : "#Z+#X FOR HANDWARMER";
-        lbButton_Line(css_text, right - lbButton_Measure(s, fmt),
-                      el[EL_HINT].y, s, fmt);
+        ovLine(css_shadow, css_text, right - lbButton_Measure(s, fmt),
+               el[EL_HINT].y, s, &ov_white, fmt);
     }
 
     /* Score (top centre). Each name carries the port that picked its nametag
      * (who is who). SIS y draws ~12 px lower than given; the screen is cut at
      * ~470 in Dolphin, earlier on a CRT. */
-    entry = HSD_SisLib_803A6B98(css_text, el[EL_SCORE].x, el[EL_SCORE].y,
-                                "%s %s  %d - %d  %s %s", p1, portLabel(0),
-                                winsFor(1), winsFor(2), portLabel(1), p2);
-    HSD_SisLib_803A7548(css_text, entry, el[EL_SCORE].scale,
-                        el[EL_SCORE].scale);
+    /* Score: written into the CSS's own rules banner (writeBanner), where
+     * "4-man survival test!" used to be. Each name carries the port that
+     * picked its nametag (who is who). */
+    {
+        char line[96];
+        sprintf(line, "%s %s  %d - %d  %s %s", p1, portLabel(0), winsFor(1),
+                winsFor(2), portLabel(1), p2);
+        writeBanner(line);
+    }
 
     /* Status (bottom left): in-flight, just-sent, or failed. (No "NEXT:
      * GAME n" line: that belongs with automatic winner detection, design.md
      * sec 12.) */
     if (pending_cmd != 0) {
         status = "SENDING...";
+        status_ink = &ov_dim;
     } else if (last_failed) {
         status = "SEND FAILED";
+        status_ink = &ov_red;
     } else if (sent_flash > 0) {
         status = "SCORE SENT";
+        status_ink = &ov_grn;
     } else if (auto_note_frames > 0) {
         status = auto_note; /* what auto-score did, or why it did not */
+        status_ink = &ov_amb;
     } else {
         status = NULL;
+        status_ink = &ov_white;
     }
     if (status != NULL) {
-        entry = HSD_SisLib_803A6B98(css_text, el[EL_STATUS].x, el[EL_STATUS].y,
-                                    "%s", status);
-        HSD_SisLib_803A7548(css_text, entry, el[EL_STATUS].scale,
-                            el[EL_STATUS].scale);
+        ovLine(css_shadow, css_text, el[EL_STATUS].x, el[EL_STATUS].y,
+               el[EL_STATUS].scale, status_ink, status);
     }
 
 #if LB_TOURNEY_LAYOUT_TUNE
@@ -667,22 +798,18 @@ static bool tuneInputs(void)
  * passes 1:00. Redrawn once a second. */
 static void redrawMatch(void)
 {
-    static GXColor red = { 255, 64, 64, 255 };
+    static const GXColor red = { 255, 64, 64, 255 };
     int sec = match_frames / 60;
-    int entry;
+    char line[32];
 
-    if (vs_text != NULL) {
-        HSD_SisLib_803A5CC4(vs_text);
-        vs_text = NULL;
-    }
-    vs_text = HSD_SisLib_803A6754(lbButton_Font(), vs_ctx);
-    vs_text->default_kerning = 1;
-    entry = HSD_SisLib_803A6B98(vs_text, 28.0f, 26.0f, "HANDWARMER  %d:%02d",
-                                sec / 60, sec % 60);
-    HSD_SisLib_803A7548(vs_text, entry, 0.6f, 0.6f);
-    if (match_frames >= LB_TOURNEY_HANDWARMER_RED_FRAMES) {
-        HSD_SisLib_803A74F0(vs_text, entry, &red);
-    }
+    freeText(&vs_text);
+    freeText(&vs_shadow);
+    vs_shadow = newText(vs_ctx, 190);
+    vs_text = newText(vs_ctx, 255);
+    sprintf(line, "HANDWARMER  %d:%02d", sec / 60, sec % 60);
+    ovLine(vs_shadow, vs_text, 28.0f, 26.0f, 0.6f,
+           match_frames >= LB_TOURNEY_HANDWARMER_RED_FRAMES ? &red : &ov_white,
+           line);
     vs_shown_sec = sec;
 }
 
@@ -728,6 +855,7 @@ void lbTourney_MatchExit(void* arg)
     /* The scene teardown frees the canvas and text GObjs; just forget them. */
     vs_ctx = -1;
     vs_text = NULL;
+    vs_shadow = NULL;
     vs_shown_sec = -1;
     /* Vanilla first: it fills the exit data's MatchEnd (outcome, standings). */
     gm_Scene_Vs_OnExit(arg);
@@ -842,5 +970,6 @@ void lbTourney_CSSExit(void* arg)
      * them. */
     css_ctx = -1;
     css_text = NULL;
+    css_shadow = NULL;
     mnCharSel_Scene_OnExit(arg);
 }

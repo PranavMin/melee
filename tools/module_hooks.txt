@@ -69,3 +69,6 @@ branch 0x8022C010 tm_menuLightColor         # mn_8022C010 (vanilla body: 0x58 by
 # boot). The CSS case (0x801A3F9C, 0x2400) is left alone: the CSS overlay is a
 # handful of entries.
 word   0x801A3FA8 0x38607800                # li r3, 0x7800 (was li r3, 0x4800)
+# The CSS case gets headroom too: the CSS overlay is three lines, but each now
+# has a shadow and the score line a rounded panel (three text objects).
+word   0x801A3F9C 0x38604800                # li r3, 0x4800 (was li r3, 0x2400)

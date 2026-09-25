@@ -149,6 +149,18 @@ bool lbButton_Drawable(char c)
     return glyphIndex(c) >= 0;
 }
 
+int lbButton_GlyphCode(char c)
+{
+    int g = glyphIndex(c);
+    if (g < 0) {
+        return -1;
+    }
+    /* Codes below 0x4000 are 0x2000 + the atlas index (hsd_3A76.c:833);
+     * the encoder's code table is indexed by its own lookup order, not by
+     * atlas index, so it is not usable here. */
+    return 0x2000 + g;
+}
+
 static f32 kernLeft(int g)
 {
     return (f32) HSD_SisLib_8040CB00[2 * g];
@@ -309,6 +321,32 @@ void lbButton_Box(HSD_Text* text, f32 x, f32 y, f32 w, f32 h, GXColor c)
     int entry = shapeEntry(text, x - sx, y - drop, LB_SHAPE_BLOCK);
     HSD_SisLib_803A7548(text, entry, sx, sy);
     HSD_SisLib_803A74F0(text, entry, &c);
+}
+
+void lbButton_Panel(HSD_Text* fill_text, HSD_Text* rim_text, f32 x, f32 y,
+                    f32 w, f32 h, f32 r, GXColor fill, GXColor rim)
+{
+    lbButton_Rect(fill_text, x + r, y, w - 2 * r, h, LB_SHAPE_BLOCK, fill);
+    lbButton_Rect(fill_text, x, y + r, r, h - 2 * r, LB_SHAPE_BLOCK, fill);
+    lbButton_Rect(fill_text, x + w - r, y + r, r, h - 2 * r, LB_SHAPE_BLOCK,
+                  fill);
+    lbButton_Rect(fill_text, x, y, r, r, LB_SHAPE_QD_TL, fill);
+    lbButton_Rect(fill_text, x + w - r, y, r, r, LB_SHAPE_QD_TR, fill);
+    lbButton_Rect(fill_text, x, y + h - r, r, r, LB_SHAPE_QD_BL, fill);
+    lbButton_Rect(fill_text, x + w - r, y + h - r, r, r, LB_SHAPE_QD_BR, fill);
+    if (rim_text != NULL) {
+        f32 t = r * 6.0f / 32.0f; /* the quarter rings' thickness */
+        lbButton_Rect(rim_text, x + r, y, w - 2 * r, t, LB_SHAPE_BLOCK, rim);
+        lbButton_Rect(rim_text, x + r, y + h - t, w - 2 * r, t, LB_SHAPE_BLOCK,
+                      rim);
+        lbButton_Rect(rim_text, x, y + r, t, h - 2 * r, LB_SHAPE_BLOCK, rim);
+        lbButton_Rect(rim_text, x + w - t, y + r, t, h - 2 * r, LB_SHAPE_BLOCK,
+                      rim);
+        lbButton_Rect(rim_text, x, y, r, r, LB_SHAPE_QR_TL, rim);
+        lbButton_Rect(rim_text, x + w - r, y, r, r, LB_SHAPE_QR_TR, rim);
+        lbButton_Rect(rim_text, x, y + h - r, r, r, LB_SHAPE_QR_BL, rim);
+        lbButton_Rect(rim_text, x + w - r, y + h - r, r, r, LB_SHAPE_QR_BR, rim);
+    }
 }
 
 /* Copies a text run into buf, translating the punctuation the SIS encoder

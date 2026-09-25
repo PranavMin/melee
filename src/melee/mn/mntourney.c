@@ -138,8 +138,13 @@ enum mnTourney_State {
 #ifndef TM_LOOK
 #define TM_LOOK 4
 #endif
+/* Dev-loop only: with 1 the list auto-confirms and starts its first set two
+ * seconds after it is up (there is no controller in the headless Dolphin
+ * loop), so the CSS overlay can be captured. Never 1 in a shipped build. */
+#ifndef TM_DEMO_AUTOSTART
+#define TM_DEMO_AUTOSTART 0
+#endif
 #define L_PANEL_R 12.0f  /* corner radius of the rounded panels */
-#define L_RIM 2.25f      /* rim thickness = 6/32 of the radius */
 #define L_SHADOW_DX 2.0f
 #define L_SHADOW_A 190
 
@@ -498,25 +503,8 @@ static void paneBox(f32 x, f32 y, f32 w, f32 h, GXColor c, bool rim)
 #if TM_LOOK == 3
     (void) x; (void) y; (void) w; (void) h; (void) c; (void) rim;
 #elif TM_LOOK == 2 || TM_LOOK == 4
-    f32 r = L_PANEL_R;
-    lbButton_Rect(tm_scrim, x + r, y, w - 2 * r, h, LB_SHAPE_BLOCK, c);
-    lbButton_Rect(tm_scrim, x, y + r, r, h - 2 * r, LB_SHAPE_BLOCK, c);
-    lbButton_Rect(tm_scrim, x + w - r, y + r, r, h - 2 * r, LB_SHAPE_BLOCK, c);
-    lbButton_Rect(tm_scrim, x, y, r, r, LB_SHAPE_QD_TL, c);
-    lbButton_Rect(tm_scrim, x + w - r, y, r, r, LB_SHAPE_QD_TR, c);
-    lbButton_Rect(tm_scrim, x, y + h - r, r, r, LB_SHAPE_QD_BL, c);
-    lbButton_Rect(tm_scrim, x + w - r, y + h - r, r, r, LB_SHAPE_QD_BR, c);
-    if (rim) {
-        f32 t = L_RIM;
-        lbButton_Rect(tm_text, x + r, y, w - 2 * r, t, LB_SHAPE_BLOCK, c_rim);
-        lbButton_Rect(tm_text, x + r, y + h - t, w - 2 * r, t, LB_SHAPE_BLOCK, c_rim);
-        lbButton_Rect(tm_text, x, y + r, t, h - 2 * r, LB_SHAPE_BLOCK, c_rim);
-        lbButton_Rect(tm_text, x + w - t, y + r, t, h - 2 * r, LB_SHAPE_BLOCK, c_rim);
-        lbButton_Rect(tm_text, x, y, r, r, LB_SHAPE_QR_TL, c_rim);
-        lbButton_Rect(tm_text, x + w - r, y, r, r, LB_SHAPE_QR_TR, c_rim);
-        lbButton_Rect(tm_text, x, y + h - r, r, r, LB_SHAPE_QR_BL, c_rim);
-        lbButton_Rect(tm_text, x + w - r, y + h - r, r, r, LB_SHAPE_QR_BR, c_rim);
-    }
+    lbButton_Panel(tm_scrim, rim ? tm_text : NULL, x, y, w, h, L_PANEL_R, c,
+                   c_rim);
 #else
     (void) rim;
     lbButton_Box(tm_scrim, x, y, w, h, c);
@@ -1256,12 +1244,22 @@ void mnTourney_Think(HSD_GObj* gobj)
         break;
     case TM_LIST:
         buildView();
+#if TM_DEMO_AUTOSTART
+        if (tm_nview > 0 && tm_frame % 600 == 120) {
+            buttons |= MenuInput_Confirm;
+        }
+#endif
         listInputs(buttons);
         if (tm_state == TM_OFF) {
             return;
         }
         break;
     case TM_CONFIRM:
+#if TM_DEMO_AUTOSTART
+        if (tm_frame % 600 == 180) {
+            buttons |= MenuInput_Confirm;
+        }
+#endif
         if (buttons & MenuInput_Back) {
             sfxBack();
             tm_state = TM_LIST;

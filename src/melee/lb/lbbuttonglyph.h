@@ -53,6 +53,8 @@ f32 lbButton_Measure(f32 scale, const char* fmt);
 /* True when the SIS encoder (plus our Shift-JIS translations) can draw c;
  * anything else is swallowed as a lead byte and eats the next character. */
 bool lbButton_Drawable(char c);
+/* The 2-byte SIS glyph code the built-in font uses for c, or -1. */
+int lbButton_GlyphCode(char c);
 
 /* One shape glyph at pen x / entry y with the SIS line semantics of a letter
  * of scale s (its ink centred on that text line), colour c; returns the
@@ -63,6 +65,12 @@ f32 lbButton_ShapeAdvance(f32 s, int shape);
 /* A flat rectangle, top-left (x, y), w by h screen pixels: the solid block
  * glyph stretched by per-entry x/y scale. Alpha is the HSD_Text's. */
 void lbButton_Box(HSD_Text* text, f32 x, f32 y, f32 w, f32 h, GXColor c);
+/* A rounded panel of corner radius r: three blocks and four quarter discs
+ * that never overlap (a translucent fill stays even) into fill_text, and,
+ * when rim_text is not NULL, a rim 6/32 of r thick into it (edges from
+ * blocks, corners from the quarter rings). */
+void lbButton_Panel(HSD_Text* fill_text, HSD_Text* rim_text, f32 x, f32 y,
+                    f32 w, f32 h, f32 r, GXColor fill, GXColor rim);
 /* Same placement for any shape whose ink fills its cell edge to edge (the
  * block, the quarter discs and rings). */
 void lbButton_Rect(HSD_Text* text, f32 x, f32 y, f32 w, f32 h, int shape,
