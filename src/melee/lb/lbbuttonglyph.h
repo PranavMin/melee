@@ -25,4 +25,10 @@
 f32 lbButton_Line(HSD_Text* text, f32 x, f32 y, f32 scale, const char* fmt);
 f32 lbButton_Measure(f32 scale, const char* fmt);
 
+/* Every kiosk text context and text object must be created on this SIS font
+ * index (a slot the game never loads) and the font installed right after the
+ * context is made - the button shapes are served through it. */
+int lbButton_Font(void);
+void lbButton_InstallFont(void);
+
 #endif

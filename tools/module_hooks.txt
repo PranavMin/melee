@@ -18,8 +18,13 @@ ptr    0x803DA9B8 lbTourney_CSSExit         # GS_CSS on_exit  (vanilla mnCharSel
 # mnmain.c menu-kind table mn_803EB6B0 (rows of 0x14: anim_loop, start_frame,
 # description_indices, selection_count, think).
 ptr    0x803EB6C0 mnTourney_MainMenuThink   # row 0 (MAIN) think (vanilla mn_8022DB10)
-# The Tournament menu hijacks row 3 (MENU_KIND_TOY, "Trophies"): the trophy
-# code region hosts the module, so that menu must never run anyway.
+# The Tournament menu hijacks row 3 (MENU_KIND_TOY, "Trophies"): the vanilla
+# table cannot grow, and a kiosk has no use for the trophy menu - picking
+# "Trophies" on the main menu now opens the set list. anim_loop/start_frame
+# are zeroed so the panel keeps the plain frame instead of the green
+# Trophies one.
+word   0x803EB6EC 0x00000000                # row 3 anim_loop = NULL (was the Trophies panel anim)
+word   0x803EB6F0 0x00000000                # row 3 start_frame = 0.0f (frame 60 = green Trophies frame)
 ptr    0x803EB6F4 mnTourney_DescIndices     # row 3 description_indices
 word   0x803EB6F8 0x01000000                # row 3 selection_count = 1
 ptr    0x803EB6FC mnTourney_Think           # row 3 think (vanilla mn_8022D34C)

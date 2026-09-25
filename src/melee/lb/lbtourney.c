@@ -1,6 +1,5 @@
 #include "lbtourney.h"
 
-#include <math.h>
 #include <string.h>
 
 #include <dolphin/pad.h>
@@ -16,20 +15,13 @@
 #include <melee/if/iftime.h>
 #include <melee/lb/lbbuttonglyph.h>
 #include <melee/lb/lbrelayexi.h>
-#include <melee/lb/lbucf.h>
 #include <melee/mn/mntourney.h>
 #include <melee/mn/mncharsel.h>
 #include <melee/mn/mnname.h>
 #include <melee/mn/types.h>
 #include <melee/pl/forward.h>
 #include <sysdolphin/baselib/controller.h>
-#include <sysdolphin/baselib/rumble.h>
 #include <sysdolphin/baselib/sislib.h>
-
-/* The vibration menu's confirmation-pulse rumble list (mnvibration.c, global
- * but not exported through its header). The venue's D-pad rumble hook passes
- * exactly this list to HSD_PadRumbleAdd. */
-extern s32 mnVibration_804D4FF0;
 
 #define LB_TOURNEY_TIMEOUT_FRAMES (5 * 60)
 #define LB_TOURNEY_END_HOLD_FRAMES 60
@@ -151,24 +143,8 @@ static void writeNametag(int slot, const char* tag, const char* fallback)
     memcpy(nd->namedata, buf, n + 1);
     /* A tagged player's in-match rumble comes from the TAG's flag, not the
      * port's (gm_RumbleEnabledForPlayer). Start off, like the venue default;
-     * the D-pad toggle and tag pick keep it in step with the port below. */
+     * lbTourney_CSSFrame mirrors the port's pref into it every frame. */
     nd->rumble_enabled = false;
-}
-
-/* Effective rumble for a port on this CSS: the port pref, or the picked
- * tag's flag once a tag is picked (what the match will actually use). */
-static bool portRumble(int port)
-{
-    return gm_RumbleEnabledForPlayer(port, mnCharSel_PortNametag(port));
-}
-
-static void setPortRumble(int port, bool on)
-{
-    int slot = mnCharSel_PortNametag(port);
-    gmMainLib_SetRumbleEnabled(port, on);
-    if (slot != GM_NAMETAG_COUNT) {
-        GetPersistentNameData(slot)->rumble_enabled = on;
-    }
 }
 
 /* The CSS port (0-3) that picked nametag `slot`, or -1. */
@@ -228,54 +204,6 @@ static int entrantPort(int entrant)
         }
     }
     return -1;
-}
-
-/* Selection-hand shake: the venue's D-pad rumble hook shoves the port's CSS
- * cursor (CSSCursorData xC, its live X) left by 3 and springs it back so the
- * hand visibly "rumbles" on a toggle. Its spring constants live in unnamed
- * .sdata2 floats that did not resolve, and as decoded its reversal test reads
- * the absolute X, so the visible effect is reproduced instead: a decaying
- * horizontal oscillation of amplitude 3, applied as per-frame deltas to xC.
- * State is ours (the asm parks its velocity past the end of the struct). This
- * runs in the scene on_frame, before HSD_GObj_RunProcs, so the delta lands
- * before CursorThink adds stick input and the render reads xC. */
-#define HAND_KICK_AMP 3.0f  /* the asm's initial velocity magnitude */
-#define HAND_STEP 0.8f      /* radians per frame: ~4-frame half-period */
-#define HAND_DECAY 0.82f    /* amplitude kept per frame: ~17 visible frames */
-#define HAND_DONE 0.1f      /* amplitude below this = settled */
-static f32 hand_amp[4];   /* 0 = idle */
-static f32 hand_phase[4];
-static f32 hand_pos[4];   /* displacement currently applied to xC */
-
-static void kickHand(int port)
-{
-    hand_amp[port] = HAND_KICK_AMP;
-    hand_phase[port] = 0.0f;
-}
-
-static void stepHand(int port)
-{
-    f32* x;
-    f32 pos;
-    if (hand_amp[port] == 0.0f) {
-        return;
-    }
-    x = mnCharSel_CursorHandOffset(port);
-    /* pos = -amp*cos(phase): starts kicked left, swings back, decays */
-    pos = -hand_amp[port] * cosf(hand_phase[port]);
-    if (x != NULL) {
-        *x += pos - hand_pos[port];
-    }
-    hand_pos[port] = pos;
-    hand_phase[port] += HAND_STEP;
-    hand_amp[port] *= HAND_DECAY;
-    if (hand_amp[port] < HAND_DONE) {
-        if (x != NULL) {
-            *x -= hand_pos[port]; /* leave the hand exactly where it was */
-        }
-        hand_amp[port] = 0.0f;
-        hand_pos[port] = 0.0f;
-    }
 }
 
 void lbTourney_SetCurrent(const struct set_entry* set)
@@ -625,7 +553,7 @@ static void redraw(void)
     memcpy(p2, cur_set.p2_tag, TAG_LEN);
     p2[TAG_LEN] = '\0';
 
-    css_text = HSD_SisLib_803A6754(0, css_ctx);
+    css_text = HSD_SisLib_803A6754(lbButton_Font(), css_ctx);
     css_text->default_kerning = 1;
 
     /* Handwarmer hint (bottom right) with button icons: the bind when off,
@@ -747,7 +675,7 @@ static void redrawMatch(void)
         HSD_SisLib_803A5CC4(vs_text);
         vs_text = NULL;
     }
-    vs_text = HSD_SisLib_803A6754(0, vs_ctx);
+    vs_text = HSD_SisLib_803A6754(lbButton_Font(), vs_ctx);
     vs_text->default_kerning = 1;
     entry = HSD_SisLib_803A6B98(vs_text, 28.0f, 26.0f, "HANDWARMER  %d:%02d",
                                 sec / 60, sec % 60);
@@ -774,7 +702,9 @@ void lbTourney_MatchFrame(void)
         }
         if (handwarmer) {
             if (vs_ctx < 0) {
-                vs_ctx = HSD_SisLib_803A611C(0, NULL, 9, 0xD, 0, 0xE, 0, 0x13);
+                vs_ctx = HSD_SisLib_803A611C(lbButton_Font(), NULL, 9, 0xD,
+                                             0, 0xE, 0, 0x13);
+                lbButton_InstallFont();
                 vs_shown_sec = -1;
             }
             if ((int) (match_frames / 60) != vs_shown_sec) {
@@ -814,40 +744,31 @@ void lbTourney_CSSFrame(void)
      * GM_MENU's onEnter lands on our Tournament menu. */
     gmMainLib_GetGameRules()->force_main_menu = 1;
     mnTourney_ArmAutoEnter();
-    /* Venue UCF 0.8: one-time swap of IASA pointers in ftData_MotionStateList
-     * (guarded, idempotent). Every kiosk match is entered from this CSS, and
-     * the table is consulted every match frame, so installing here is in time
-     * for all of them. No matched-function edit. */
-    lbUcf_Install();
-    /* Venue D-pad rumble: native port of the Tournament mods' CSS hook
-     * (g_mods_tournament.bin code at mnCharSel_CursorThink+0x638). On the CSS,
-     * D-pad UP turns a port's rumble on, with the same confirmation pulse the
-     * vibration menu plays; D-pad DOWN turns it off; each only when the
-     * setting actually changes. The asm also bounces the CSS rumble icon (a
-     * cosmetic -3.0/-2.5 spring) - not carried. Edge-triggered here, which
-     * stands in for the asm's per-port "handled" latch. */
+    /* Venue mods (UCF, neutral spawns, striking, stealth nametag, the D-pad
+     * rumble toggle, audio) are Nintendont's / Dolphin's gecko codes on the
+     * vanilla DOL; the module adds nothing there. One consequence: the venue's
+     * D-pad toggle writes the PORT pref, but Melee takes a tagged player's
+     * in-match rumble from the TAG (gm_RumbleEnabledForPlayer) and the
+     * kiosk's seeded tags start off - so the picked tags mirror their port's
+     * pref every CSS frame. */
     {
         int port;
-        bool tuning = has_set && tuneInputs();
+        if (has_set) {
+            (void) tuneInputs();
+        }
         for (port = 0; port < 4; port++) {
-            u32 trig = HSD_PadCopyStatus[port].trigger;
-            if (tuning) {
-                trig = 0; /* the L+R chord owns the D-pad this frame */
+            int slot = mnCharSel_PortNametag(port);
+            if (slot == 0 || slot == 1) {
+                GetPersistentNameData(slot)->rumble_enabled =
+                    GetRumbleSettingOfPort(port) ? true : false;
             }
-            if ((trig & PAD_BUTTON_UP) && !portRumble(port)) {
-                setPortRumble(port, true);
-                HSD_PadRumbleAdd(port, 0, 14, 0, &mnVibration_804D4FF0);
-                kickHand(port); /* the asm bounces the hand on any toggle */
-            } else if ((trig & PAD_BUTTON_DOWN) && portRumble(port)) {
-                setPortRumble(port, false);
-                kickHand(port);
-            }
-            stepHand(port);
         }
     }
     if (has_set) {
         if (css_ctx < 0) {
-            css_ctx = HSD_SisLib_803A611C(0, NULL, 9, 0xD, 0, 0xE, 0, 0x13);
+            css_ctx = HSD_SisLib_803A611C(lbButton_Font(), NULL, 9, 0xD, 0,
+                                          0xE, 0, 0x13);
+            lbButton_InstallFont();
             css_dirty = true;
         }
         if (match_seen) {
@@ -886,16 +807,6 @@ void lbTourney_CSSFrame(void)
             static int shown_p1_port = -2, shown_p2_port = -2;
             int a = portWithTag(0), b = portWithTag(1);
             if (a != shown_p1_port || b != shown_p2_port) {
-                /* A newly picked tag inherits the port's rumble choice, so
-                 * a D-pad toggle made before picking still holds. */
-                if (a >= 0 && a != shown_p1_port) {
-                    GetPersistentNameData(0)->rumble_enabled =
-                        GetRumbleSettingOfPort(a);
-                }
-                if (b >= 0 && b != shown_p2_port) {
-                    GetPersistentNameData(1)->rumble_enabled =
-                        GetRumbleSettingOfPort(b);
-                }
                 shown_p1_port = a;
                 shown_p2_port = b;
                 css_dirty = true;

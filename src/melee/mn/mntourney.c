@@ -261,7 +261,7 @@ static void redraw(void)
     char buf[64];
 
     destroyText();
-    tm_text = HSD_SisLib_803A6754(0, tm_ctx);
+    tm_text = HSD_SisLib_803A6754(lbButton_Font(), tm_ctx);
     tm_text->default_kerning = 1;
 
     centred(50.0f, 0.72f, "TOURNAMENT");
@@ -449,7 +449,9 @@ void mnTourney_Think(HSD_GObj* gobj)
     buttons = Menu_GetAllInputs();
 
     if (tm_ctx < 0) {
-        tm_ctx = HSD_SisLib_803A611C(0, NULL, 9, 0xD, 0, 0xE, 0, 0x13);
+        tm_ctx = HSD_SisLib_803A611C(lbButton_Font(), NULL, 9, 0xD, 0, 0xE, 0,
+                                     0x13);
+        lbButton_InstallFont();
         tm_dirty = true;
     }
 

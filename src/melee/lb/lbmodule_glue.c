@@ -10,7 +10,6 @@
 #include <melee/gm/gm_1A3F.h>
 #include <melee/gm/forward.h>
 #include <melee/gm/types.h>
-#include <melee/lb/lbucf.h>
 #include <melee/mn/forward.h>
 #include <melee/mn/mncharsel.h>
 #include <melee/mn/types.h>
@@ -47,19 +46,6 @@ bool mnCharSel_TryStartFight(void)
     mnCharSel_804D6CF6 = 1;
     mnCharSel_804D6CF2 = 0xFF;
     return true;
-}
-
-/* The selection-hand shake belongs to the venue's own rumble-toggle code on a
- * vanilla ISO; the module never moves the hand. */
-f32* mnCharSel_CursorHandOffset(int port)
-{
-    (void) port;
-    return NULL;
-}
-
-/* UCF comes from Nintendont's UCF codeset on a vanilla ISO. */
-void lbUcf_Install(void)
-{
 }
 
 /* Boot hook: the module's `bootOnLoad` replacement (gmboot.c), reached by a

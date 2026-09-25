@@ -11,11 +11,32 @@
  * pen + 1*s, and the pen advances (34 - left - right)*s. */
 #define CELL 32.0f
 
-/* Extra atlas glyphs (tools/gen_button_glyphs.py). */
-enum lbButton_Shape { SH_DISC, SH_RSQ, SH_PILL, SH_CROSS };
-static const char* const shape_str[4] = { "\x85\x40", "\x85\x41", "\x85\x42",
-                                          "\x85\x43" };
-static const int shape_glyph[4] = { 287, 288, 289, 290 };
+/* The button shapes live in a SIS font slot of our own. Glyph codes below
+ * 0x4000 always come from the built-in atlas; codes 0x4000+n are drawn from
+ * the text's font table (HSD_SisLib_804D1124[font_idx]): the texture from
+ * (u8*)sis->kerning + n*0x200 and the {left,right} kerning pair from
+ * sis->textures->data[n*2] (the two fields are named the other way round
+ * from how the draw code uses them - hsd_3A76.c:834/842). Font index 4 is
+ * never loaded by the game, so it is ours; the scene teardown clears the
+ * table, so it is re-installed whenever a kiosk text context is created. */
+#define TM_FONT 4
+enum lbButton_Shape { SH_DISC, SH_RSQ, SH_PILL, SH_CROSS, SH_COUNT };
+static const u8 shape_tex[SH_COUNT][512] ATTRIBUTE_ALIGN(32) = {
+#include "lbbuttonglyph_shapes.inc"
+};
+/* {left, right} blank columns of each shape (tools/gen_button_glyphs.py). */
+static const u8 shape_kern[SH_COUNT][2] = { { 2, 2 }, { 3, 3 }, { 1, 1 }, { 2, 2 } };
+static const SIS tm_font = { (TextKerning*) shape_tex, (TextGlyphTexture*) shape_kern };
+
+int lbButton_Font(void)
+{
+    return TM_FONT;
+}
+
+void lbButton_InstallFont(void)
+{
+    HSD_SisLib_804D1124[TM_FONT] = (SIS*) &tm_font;
+}
 
 /* Letter drawn over the shape, as a fraction of the shape's scale. */
 #define LETTER_SCALE 0.58f
@@ -167,17 +188,37 @@ static const struct lbButton_Def* findDef(char marker)
     return NULL;
 }
 
-static f32 iconAdvance(const struct lbButton_Def* d, f32 s)
+static f32 shapeAdvance(int shape, f32 s)
 {
-    return advance(shape_glyph[d->shape], s);
+    return (CELL + 2.0f - shape_kern[shape][0] - shape_kern[shape][1]) * s;
+}
+
+/* One entry holding a single shape glyph, code 0x4000+shape. The ASCII
+ * encoder cannot produce that code, so the entry is created with a
+ * placeholder digit - encoded as "0A F4 00 00 00 20 00 0B" (spacing push,
+ * glyph, spacing pop; hsd_3A64.c sisBeginLine/sisEndKerning) right after the
+ * 14-byte entry header (07 x y / 0C rgb / 0E scale) - and those 8 bytes are
+ * rewritten in place: the glyph code, then 0x1F fillers, an opcode neither
+ * the draw nor the measure loop knows and both step over one byte at a
+ * time. Same length, so the entry walker is unaffected. */
+static int shapeEntry(HSD_Text* text, f32 x, f32 y, int shape)
+{
+    int entry = HSD_SisLib_803A6B98(text, x, y, "0");
+    u8* e = fn_803A6FEC((u8*) text->sis_buffer, entry, NULL);
+    if (e != NULL && e[0] == 7 && e[14] == 0x0A && e[19] == 0x20 && e[20] == 0x00) {
+        e[14] = 0x40;
+        e[15] = (u8) shape;
+        memset(e + 16, 0x1F, 6);
+    }
+    return entry;
 }
 
 /* Draws one icon at pen (x, y); returns its advance. */
 static f32 drawIcon(HSD_Text* text, f32 x, f32 y, f32 s,
                     const struct lbButton_Def* d)
 {
-    int g = shape_glyph[d->shape];
-    f32 cx = x + (1.0f + 0.5f * (CELL - kernLeft(g) - kernRight(g))) * s;
+    const u8* k = shape_kern[d->shape];
+    f32 cx = x + (1.0f + 0.5f * (CELL - k[0] - k[1])) * s;
     /* Vertical: every entry's scale opcode is pushed at its start and popped
      * at its end, so each line is measured against the text's default scale
      * (1.0) and a glyph at scale s is drawn 32*(1-s) below the entry's y
@@ -188,7 +229,7 @@ static f32 drawIcon(HSD_Text* text, f32 x, f32 y, f32 s,
     GXColor c;
     int entry;
 
-    entry = HSD_SisLib_803A6B98(text, x, y, "%s", shape_str[d->shape]);
+    entry = shapeEntry(text, x, y, d->shape);
     HSD_SisLib_803A7548(text, entry, s, s);
     c = d->fill;
     HSD_SisLib_803A74F0(text, entry, &c);
@@ -202,7 +243,7 @@ static f32 drawIcon(HSD_Text* text, f32 x, f32 y, f32 s,
         c = d->ink;
         HSD_SisLib_803A74F0(text, entry, &c);
     }
-    return iconAdvance(d, s);
+    return shapeAdvance(d->shape, s);
 }
 
 /* Copies a text run into buf, translating the punctuation the SIS encoder
@@ -254,7 +295,7 @@ static f32 walk(HSD_Text* text, f32 x, f32 y, f32 s, const char* fmt,
             if (draw) {
                 pen += drawIcon(text, pen, y, s, d);
             } else {
-                pen += iconAdvance(d, s);
+                pen += shapeAdvance(d->shape, s);
             }
             p += 2;
         }
