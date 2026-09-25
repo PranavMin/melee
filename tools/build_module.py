@@ -57,6 +57,7 @@ TUS = [
     "src/melee/lb/lbrelayexi.c",
     "src/melee/lb/lbbuttonglyph.c",
     "src/melee/lb/lbmodule_glue.c",
+    "src/melee/lb/lbwordmark.c",
 ]
 # Codesets the venue enables (Nintendont MeleeCodes + Slippi core).
 CODESETS = ["g_core.bin", "g_crash_output.bin", "g_ucf_084.bin", "g_ucf.bin",

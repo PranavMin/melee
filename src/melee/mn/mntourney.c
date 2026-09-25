@@ -16,6 +16,7 @@
 #include <melee/lb/lbbuttonglyph.h>
 #include <melee/lb/lbrelayexi.h>
 #include <melee/lb/lbtourney.h>
+#include <melee/lb/lbwordmark.h>
 #include <melee/mn/mnmain.h>
 #include <sysdolphin/baselib/gobj.h>
 #include <sysdolphin/baselib/gobjplink.h>
@@ -84,9 +85,11 @@ enum mnTourney_State {
  * (the composite-TV floor for anything that matters), 0.50 = 13 px. A glyph
  * of scale s is drawn 32*(1-s) px below its entry's y and every scale shares
  * the line's bottom, so different scales on one y are baseline-aligned. */
-#define L_TITLE_X 84.0f /* the panel's own title spot, top-left tab */
-#define L_TITLE_Y 40.0f
-#define L_TITLE_S 0.90f
+/* The TOURNAMENT wordmark (lbwordmark.c, a 256x48 sprite) sits in the
+ * panel's own title spot, the top-left tab. */
+#define L_WM_X 76.0f
+#define L_WM_Y 34.0f
+#define L_WM_S 1.0f
 #define L_HEAD_Y 88.0f /* filter pill + position */
 #define L_HEAD_S 0.55f
 #define L_LIST_X 58.0f /* scrim and cursor bar */
@@ -171,6 +174,7 @@ static u32 tm_timeout;
 static u8 tm_retry_cmd; /* relay_cmd the error screen's A retries */
 static char tm_errmsg[MSG_LEN + 1];
 static bool tm_err_link; /* the error is ours/transport, not the relay's answer */
+static u8 tm_err_status; /* relay_status of the relay's answer when !tm_err_link */
 static bool tm_dirty;
 static u32 tm_keep_id; /* set_id to put the cursor back on after a reload */
 static struct exi_poll_hdr tm_ph; /* station / relay address, host-filled */
@@ -435,6 +439,13 @@ static void selectSet(u32 set_id)
     }
     tm_top = 0;
     ensureVisible();
+}
+
+/* The relay refused us over the shared secret (relay_status ST_BAD_SECRET,
+ * design R15): tournament.cfg's secret= does not match the relay's. */
+static bool errIsSecret(void)
+{
+    return !tm_err_link && tm_err_status == ST_BAD_SECRET;
 }
 
 /* ------------------------------------------------------------ drawing */
@@ -852,6 +863,7 @@ static void drawPane(void)
         dotLabel(L_PANE_X, 236.0f, L_HINT_S, &c_red,
                  tm_ph.relay_ip == 0 ? "NOT FOUND"
                  : tm_err_link       ? "NO LINK"
+                 : errIsSecret()     ? "BAD SECRET"
                                      : "REFUSED");
         break;
     default:
@@ -872,7 +884,8 @@ static void redraw(void)
     paneBox(L_LIST_X, L_LIST_Y, L_LIST_W, L_LIST_H, c_scrim, true);
     paneBox(L_PANE_BOX_X, L_PANE_BOX_Y, L_PANE_BOX_W, L_PANE_BOX_H, c_scrim,
             true);
-    lineC(L_TITLE_X, L_TITLE_Y, L_TITLE_S, &c_white, "TOURNAMENT");
+    /* The TOURNAMENT title is the wordmark sprite (lbWordmark_Show), which
+     * lives across redraws. */
 
     switch (tm_state) {
     case TM_SEARCHING:
@@ -913,6 +926,7 @@ static void redraw(void)
         lineC(L_TEXT_X, 150.0f, 0.62f, &c_red,
               tm_ph.relay_ip == 0 ? "NO RELAY FOUND"
               : tm_err_link       ? "NO LINK TO THE RELAY"
+              : errIsSecret()     ? "RELAY SECRET MISMATCH"
                                   : "THE RELAY SAID NO");
         wrap2(L_TEXT_X, 190.0f, 26.0f, L_HDR_S, 0.45f, L_LIST_W - 24.0f, &c_white,
               tm_errmsg);
@@ -920,6 +934,7 @@ static void redraw(void)
               tm_count > 0 ? "YOUR LIST IS STILL HERE" : "NO SETS LOADED YET");
         lineC(L_TEXT_X, 286.0f, 0.45f, &c_dim,
               tm_ph.relay_ip == 0 ? "IS THIS SETUP ON THE RELAY'S NETWORK?"
+              : errIsSecret()     ? "CHECK THE SECRET ON THIS CARD"
                                   : "TELL THE TO IF THIS REPEATS");
         centredAt(L_HINT_CX, L_HINT_Y, L_HINT_S, &c_white,
                   "#A RETRY   #B BACK");
@@ -936,6 +951,7 @@ static void fail(const char* msg)
 {
     copyStr(tm_errmsg, msg, MSG_LEN);
     tm_err_link = true;
+    tm_err_status = 0;
     tm_state = TM_ERROR;
     tm_dirty = true;
 }
@@ -947,6 +963,7 @@ static void failFromResp(const struct relay_resp* resp)
         copyStr(tm_errmsg, "RELAY ERROR", MSG_LEN);
     }
     tm_err_link = false;
+    tm_err_status = resp->status;
     tm_state = TM_ERROR;
     tm_dirty = true;
 }
@@ -1016,6 +1033,7 @@ static void sendStart(void)
 static void exitToMainMenu(void)
 {
     destroyText();
+    lbWordmark_Hide();
     tm_state = TM_OFF;
     /* B-back: the player wants the real main menu, so show its visuals again
      * before its think takes over. */
@@ -1186,6 +1204,7 @@ void mnTourney_Think(HSD_GObj* gobj)
         tm_ctx = HSD_SisLib_803A611C(lbButton_Font(), NULL, 9, 0xD, 0, 0xE, 0,
                                      0x13);
         lbButton_InstallFont();
+        lbWordmark_Show(L_WM_X, L_WM_Y, L_WM_S);
         tm_dirty = true;
     }
 
@@ -1393,5 +1412,6 @@ void mnTourney_MenuSceneExit(void* exit_data)
     tm_bar = NULL;
     tm_shadow = NULL;
     tm_scrim = NULL;
+    lbWordmark_Forget();
     tm_state = TM_OFF;
 }
