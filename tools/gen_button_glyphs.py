@@ -44,6 +44,10 @@ def rect(x0, y0, x1, y1):
     return lambda px, py: x0 <= px <= x1 and y0 <= py <= y1
 
 
+def ring(cx, cy, r_out, r_in):
+    return lambda px, py: r_in ** 2 <= (px - cx) ** 2 + (py - cy) ** 2 <= r_out ** 2
+
+
 def tri(ax, ay, bx, by, cx, cy):
     """Coverage test for the triangle a-b-c (any winding)."""
     def side(px, py, x0, y0, x1, y1):
@@ -73,6 +77,18 @@ GLYPHS = [
     ("TRI_UP", tri(16.0, 5.0, 28.0, 26.0, 4.0, 26.0),       (4, 27)),
     ("TRI_DN", tri(4.0, 6.0, 28.0, 6.0, 16.0, 27.0),        (4, 27)),
     ("TRI_RT", tri(7.0, 4.0, 27.0, 16.0, 7.0, 28.0),        (7, 26)),
+    # Rounded-panel pieces: a quarter disc per corner (the circle's centre is
+    # the cell corner that meets the panel's straight edges, so the piece
+    # fills its quadrant flush with the neighbouring blocks) and a quarter
+    # ring per corner for a rim 6/32 of the radius thick.
+    ("QD_TL", disc(32.0, 32.0, 32.0), (0, 31)),
+    ("QD_TR", disc(0.0, 32.0, 32.0),  (0, 31)),
+    ("QD_BL", disc(32.0, 0.0, 32.0),  (0, 31)),
+    ("QD_BR", disc(0.0, 0.0, 32.0),   (0, 31)),
+    ("QR_TL", ring(32.0, 32.0, 32.0, 26.0), (0, 31)),
+    ("QR_TR", ring(0.0, 32.0, 32.0, 26.0),  (0, 31)),
+    ("QR_BL", ring(32.0, 0.0, 32.0, 26.0),  (0, 31)),
+    ("QR_BR", ring(0.0, 0.0, 32.0, 26.0),   (0, 31)),
 ]
 
 

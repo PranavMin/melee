@@ -59,3 +59,13 @@ branch 0x801BF948 tm_bootOnLoad             # bootOnLoad (vanilla body: 0x60 byt
 word   0x803EBA44 0x8022C190                # fn_8022C128 table[3] -> colour 0 case (was 0x8022C1A0, colour 2)
 word   0x803EBACC 0x8022C3B8                # mn_8022C304 table[3] -> colour 0 case (was 0x8022C3C8, colour 2)
 branch 0x8022C010 tm_menuLightColor         # mn_8022C010 (vanilla body: 0x58 bytes)
+
+# gm_1A3F.c preloadState: the SIS text pool each scene gets (HSD_SisLib_803A6048).
+# GS_MENU falls in the default case, 0x4800 = 18 KB, which the kiosk's set list
+# (four text objects, ~100 entries with the rounded panels) exhausts - the
+# allocator's "Memory Empty" OSPanic halts the CPU (seen 2026-09-25). The
+# operand is an li immediate, which is SIGN-EXTENDED: 0x7800 (30 KB) is the
+# largest size a single li can express (0xC000 became -16 KB and panicked at
+# boot). The CSS case (0x801A3F9C, 0x2400) is left alone: the CSS overlay is a
+# handful of entries.
+word   0x801A3FA8 0x38607800                # li r3, 0x7800 (was li r3, 0x4800)

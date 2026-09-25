@@ -83,9 +83,18 @@ Legend: each item is something *you* verify by eye on the running build.
       highlighted set (round, tags, BEST OF n, READY / PLAYING HERE, A START); hints
       `Z FRIENDLIES  Y REFRESH  B MENU` centred between the panel's bottom corner boxes.
       *Every position is a `L_*` constant at the top of mntourney.c; measured centring
-      via `lbButton_Measure`, never by eye. If the two scrims are missing or sit low,
-      the stretched-block rule broke: a glyph taller than a line starts AT its entry
-      y, a shorter one 32*(1-sy) below it (lbbuttonglyph.c lbButton_Box).*
+      via `lbButton_Measure`, never by eye. Both panes are rounded translucent navy
+      panels with a light-blue rim and every line has a 2 px drop shadow (look 4 of the
+      2026-09-25 variants, `TM_LOOK` in mntourney.c). If the panels are missing or sit
+      low, the stretched-block rule broke: a glyph taller than a line starts AT its
+      entry y, a shorter one 32*(1-sy) below it (lbbuttonglyph.c lbButton_Rect). Seams
+      or darker patches in a panel mean two translucent pieces overlap.*
+- [ ] **No halt on entering the list.** *The menu scene's SIS text pool is 18 KB in
+      vanilla and the two-pane screen needs more; the module patches `preloadState`'s
+      size to 30 KB (`word 0x801A3FA8 0x38607800`, tools/module_hooks.txt). A freeze
+      with FPS 0 and `Memory Empty in "sislib.c"` in Dolphin's log means that hook is
+      missing or the screen grew past the pool: cut entries, the `li` immediate cannot
+      go above 0x7FFF (0xC000 sign-extends to a negative size and panics at boot).*
 - [ ] **Long list:** with more than 8 slots the header shows a small up-triangle after the
       position once scrolled, `MORE` with a down-triangle sits inside the scrim under the
       last row, left/right on the stick pages by 7, X jumps to the set marked PLAYING HERE

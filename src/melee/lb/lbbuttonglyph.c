@@ -32,6 +32,8 @@ static const u8 shape_tex[SH_COUNT][512] ATTRIBUTE_ALIGN(32) = {
 static const u8 shape_kern[SH_COUNT][2] = {
     { 2, 2 }, { 3, 3 }, { 1, 1 }, { 2, 2 }, /* DISC RSQ PILL CROSS */
     { 0, 0 }, { 4, 4 }, { 4, 4 }, { 7, 5 }, /* BLOCK TRI_UP TRI_DN TRI_RT */
+    { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, /* QD_TL QD_TR QD_BL QD_BR */
+    { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, /* QR_TL QR_TR QR_BL QR_BR */
 };
 static const SIS tm_font = { (TextKerning*) shape_tex, (TextGlyphTexture*) shape_kern };
 
@@ -229,9 +231,10 @@ static int shapeEntry(HSD_Text* text, f32 x, f32 y, int shape)
     return entry;
 }
 
-/* Draws one icon at pen (x, y); returns its advance. */
+/* Draws one icon at pen (x, y); returns its advance. mono: the shape in
+ * *mono and no letter (a shadow). */
 static f32 drawIcon(HSD_Text* text, f32 x, f32 y, f32 s,
-                    const struct lbButton_Def* d)
+                    const struct lbButton_Def* d, const GXColor* mono)
 {
     const u8* k = shape_kern[d->shape];
     f32 S = s * ICON_SCALE; /* the shape's own scale */
@@ -251,10 +254,10 @@ static f32 drawIcon(HSD_Text* text, f32 x, f32 y, f32 s,
 
     entry = shapeEntry(text, x, sy, d->shape);
     HSD_SisLib_803A7548(text, entry, S, S);
-    c = d->fill;
+    c = mono != NULL ? *mono : d->fill;
     HSD_SisLib_803A74F0(text, entry, &c);
 
-    if (d->letters[0] != '\0') {
+    if (mono == NULL && d->letters[0] != '\0') {
         f32 t = S * LETTER_SCALE;
         f32 lx = cx - inkCentre(d->letters, t);
         f32 ly = cy - CELL + 16.5f * t;
@@ -277,6 +280,17 @@ f32 lbButton_Shape(HSD_Text* text, f32 x, f32 y, f32 s, int shape, GXColor c)
     HSD_SisLib_803A7548(text, entry, s, s);
     HSD_SisLib_803A74F0(text, entry, &c);
     return lbButton_ShapeAdvance(s, shape);
+}
+
+void lbButton_Rect(HSD_Text* text, f32 x, f32 y, f32 w, f32 h, int shape,
+                   GXColor c)
+{
+    f32 sx = w / CELL;
+    f32 sy = h / CELL;
+    f32 drop = sy < 1.0f ? CELL * (1.0f - sy) : 0.0f;
+    int entry = shapeEntry(text, x - sx, y - drop, shape);
+    HSD_SisLib_803A7548(text, entry, sx, sy);
+    HSD_SisLib_803A74F0(text, entry, &c);
 }
 
 void lbButton_Box(HSD_Text* text, f32 x, f32 y, f32 w, f32 h, GXColor c)
@@ -315,9 +329,10 @@ static void encodeRun(char* buf, int cap, const char* str, int n)
     buf[o] = '\0';
 }
 
-/* Shared walker: draw == NULL measures only; ink colours the text runs. */
+/* Shared walker: draw == NULL measures only; ink colours the text runs;
+ * mono also paints the icon shapes in ink and drops their letters. */
 static f32 walk(HSD_Text* text, f32 x, f32 y, f32 s, const GXColor* ink,
-                const char* fmt, bool draw)
+                const char* fmt, bool draw, bool mono)
 {
     f32 pen = x;
     const char* p = fmt;
@@ -348,7 +363,7 @@ static f32 walk(HSD_Text* text, f32 x, f32 y, f32 s, const GXColor* ink,
         if (*p == '#') {
             d = findDef(p[1]);
             if (draw) {
-                pen += drawIcon(text, pen, y, s, d);
+                pen += drawIcon(text, pen, y, s, d, mono ? ink : NULL);
             } else {
                 pen += shapeAdvance(d->shape, s);
             }
@@ -360,16 +375,22 @@ static f32 walk(HSD_Text* text, f32 x, f32 y, f32 s, const GXColor* ink,
 
 f32 lbButton_Line(HSD_Text* text, f32 x, f32 y, f32 scale, const char* fmt)
 {
-    return walk(text, x, y, scale, NULL, fmt, true);
+    return walk(text, x, y, scale, NULL, fmt, true, false);
 }
 
 f32 lbButton_LineC(HSD_Text* text, f32 x, f32 y, f32 scale,
                    const GXColor* ink, const char* fmt)
 {
-    return walk(text, x, y, scale, ink, fmt, true);
+    return walk(text, x, y, scale, ink, fmt, true, false);
+}
+
+f32 lbButton_LineMono(HSD_Text* text, f32 x, f32 y, f32 scale,
+                      const GXColor* ink, const char* fmt)
+{
+    return walk(text, x, y, scale, ink, fmt, true, true);
 }
 
 f32 lbButton_Measure(f32 scale, const char* fmt)
 {
-    return walk(NULL, 0.0f, 0.0f, scale, NULL, fmt, false);
+    return walk(NULL, 0.0f, 0.0f, scale, NULL, fmt, false, false);
 }

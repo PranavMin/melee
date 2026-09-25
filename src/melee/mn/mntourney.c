@@ -125,6 +125,21 @@ enum mnTourney_State {
 #define L_BAR_A 80    /* alpha of the cursor bar */
 #define L_PULSE_FRAMES 20
 
+/* How the two panes get their contrast over the animated grid (trial
+ * variants, 2026-09-25):
+ *   0  flat near-black scrims (the pitch's version)
+ *   1  flat translucent navy scrims, the grid shows through
+ *   2  rounded translucent navy panels with a thin light-blue rim
+ *   3  no panels; every text line gets a drop shadow instead
+ *   4  the rounded rim panels of 2 with a light fill, plus the shadows of 3 */
+#ifndef TM_LOOK
+#define TM_LOOK 4
+#endif
+#define L_PANEL_R 12.0f  /* corner radius of the rounded panels */
+#define L_RIM 2.25f      /* rim thickness = 6/32 of the radius */
+#define L_SHADOW_DX 2.0f
+#define L_SHADOW_A 190
+
 static const GXColor c_white = { 255, 255, 255, 255 };
 static const GXColor c_dim = { 169, 188, 230, 255 };  /* secondary */
 static const GXColor c_dim2 = { 126, 145, 191, 255 }; /* headers, cues */
@@ -133,7 +148,13 @@ static const GXColor c_amb = { 255, 179, 71, 255 };   /* playing here */
 static const GXColor c_red = { 255, 106, 92, 255 };
 static const GXColor c_grn = { 94, 224, 138, 255 };
 static const GXColor c_muted = { 96, 110, 150, 255 }; /* list behind a confirm */
+#if TM_LOOK == 0
 static const GXColor c_scrim = { 2, 4, 14, 255 };
+#else
+static const GXColor c_scrim = { 18, 28, 72, 255 };  /* translucent navy */
+#endif
+static const GXColor c_rim = { 110, 150, 255, 255 };
+static const GXColor c_black = { 0, 0, 0, 255 };
 static const GXColor c_tint = { 70, 60, 10, 255 };    /* pane behind a confirm */
 static const GXColor c_bar = { 120, 170, 255, 255 };
 static const GXColor c_pill5 = { 90, 82, 184, 255 };  /* Z purple */
@@ -226,6 +247,7 @@ static void setMenuVisualsHidden(bool hide)
  * first (creation order is draw order), everything else is opaque. */
 static s32 tm_ctx = -1;
 static HSD_Text* tm_scrim = NULL;
+static HSD_Text* tm_shadow = NULL; /* TM_LOOK 3: drop shadows */
 static HSD_Text* tm_bar = NULL;
 static HSD_Text* tm_text = NULL;
 
@@ -427,6 +449,10 @@ static void destroyText(void)
         HSD_SisLib_803A5CC4(tm_bar);
         tm_bar = NULL;
     }
+    if (tm_shadow != NULL) {
+        HSD_SisLib_803A5CC4(tm_shadow);
+        tm_shadow = NULL;
+    }
     if (tm_scrim != NULL) {
         HSD_SisLib_803A5CC4(tm_scrim);
         tm_scrim = NULL;
@@ -446,7 +472,44 @@ static HSD_Text* newText(u8 alpha)
  * copyStr'd first, which also drops '#', so no tag can start an icon. */
 static void lineC(f32 x, f32 y, f32 scale, const GXColor* c, const char* str)
 {
+    if (tm_shadow != NULL) {
+        lbButton_LineMono(tm_shadow, x + L_SHADOW_DX, y + L_SHADOW_DX, scale,
+                          &c_black, str);
+    }
     lbButton_LineC(tm_text, x, y, scale, c, str);
+}
+
+/* A pane background: flat scrim, or a rounded panel built from three blocks
+ * and four quarter discs that never overlap (overlaps would double the
+ * alpha), with an opaque rim drawn by the main text on top. */
+static void paneBox(f32 x, f32 y, f32 w, f32 h, GXColor c, bool rim)
+{
+#if TM_LOOK == 3
+    (void) x; (void) y; (void) w; (void) h; (void) c; (void) rim;
+#elif TM_LOOK == 2 || TM_LOOK == 4
+    f32 r = L_PANEL_R;
+    lbButton_Rect(tm_scrim, x + r, y, w - 2 * r, h, LB_SHAPE_BLOCK, c);
+    lbButton_Rect(tm_scrim, x, y + r, r, h - 2 * r, LB_SHAPE_BLOCK, c);
+    lbButton_Rect(tm_scrim, x + w - r, y + r, r, h - 2 * r, LB_SHAPE_BLOCK, c);
+    lbButton_Rect(tm_scrim, x, y, r, r, LB_SHAPE_QD_TL, c);
+    lbButton_Rect(tm_scrim, x + w - r, y, r, r, LB_SHAPE_QD_TR, c);
+    lbButton_Rect(tm_scrim, x, y + h - r, r, r, LB_SHAPE_QD_BL, c);
+    lbButton_Rect(tm_scrim, x + w - r, y + h - r, r, r, LB_SHAPE_QD_BR, c);
+    if (rim) {
+        f32 t = L_RIM;
+        lbButton_Rect(tm_text, x + r, y, w - 2 * r, t, LB_SHAPE_BLOCK, c_rim);
+        lbButton_Rect(tm_text, x + r, y + h - t, w - 2 * r, t, LB_SHAPE_BLOCK, c_rim);
+        lbButton_Rect(tm_text, x, y + r, t, h - 2 * r, LB_SHAPE_BLOCK, c_rim);
+        lbButton_Rect(tm_text, x + w - t, y + r, t, h - 2 * r, LB_SHAPE_BLOCK, c_rim);
+        lbButton_Rect(tm_text, x, y, r, r, LB_SHAPE_QR_TL, c_rim);
+        lbButton_Rect(tm_text, x + w - r, y, r, r, LB_SHAPE_QR_TR, c_rim);
+        lbButton_Rect(tm_text, x, y + h - r, r, r, LB_SHAPE_QR_BL, c_rim);
+        lbButton_Rect(tm_text, x + w - r, y + h - r, r, r, LB_SHAPE_QR_BR, c_rim);
+    }
+#else
+    (void) rim;
+    lbButton_Box(tm_scrim, x, y, w, h, c);
+#endif
 }
 
 static f32 width(f32 scale, const char* str)
@@ -465,7 +528,7 @@ static void centredAt(f32 cx, f32 y, f32 scale, const GXColor* c,
                       const char* fmt)
 {
     f32 w = lbButton_Measure(scale, fmt);
-    lbButton_LineC(tm_text, cx - 0.5f * w, y, scale, c, fmt);
+    lineC(cx - 0.5f * w, y, scale, c, fmt);
 }
 
 /* Shrinks buf's scale from s0 (not below s_min) until it fits w, then cuts
@@ -600,8 +663,11 @@ static void drawRow(f32 y, const struct set_entry* set, bool selected,
     s = pairScale(p1, p2, L_TAG_W);
     c = muted ? &c_muted : selected ? &c_yel : set->state != 0 ? &c_amb : &c_white;
     if (selected) {
-        lbButton_Box(tm_bar, L_LIST_X, y + L_BAR_DY, L_LIST_W, L_BAR_H, c_bar);
-        lbButton_Box(tm_text, L_LIST_X, y + L_BAR_DY, 4.0f, L_BAR_H,
+        /* Inside the panel's rim on the rounded looks. */
+        f32 in = (TM_LOOK == 2 || TM_LOOK == 4) ? 3.0f : 0.0f;
+        lbButton_Box(tm_bar, L_LIST_X + in, y + L_BAR_DY, L_LIST_W - 2 * in,
+                     L_BAR_H, c_bar);
+        lbButton_Box(tm_text, L_LIST_X + in, y + L_BAR_DY, 4.0f, L_BAR_H,
                      muted ? c_muted : c_yel);
     }
     rightAt(L_TAG_L_R, y, s, c, p1);
@@ -617,13 +683,12 @@ static void drawHeader(void)
     int k, last, first_row = 0, last_row = 0;
 
     if (tm_filter == 0) {
-        lbButton_LineC(tm_text, L_TEXT_X, L_HEAD_Y, L_HEAD_S, &c_dim,
-                       "#L ALL SETS #R");
+        lineC(L_TEXT_X, L_HEAD_Y, L_HEAD_S, &c_dim, "#L ALL SETS #R");
     } else {
         p = putStr(buf, "#L NAMES: ");
         *p++ = tm_filter;
         putStr(p, " #R");
-        lbButton_LineC(tm_text, L_TEXT_X, L_HEAD_Y, L_HEAD_S, &c_dim, buf);
+        lineC(L_TEXT_X, L_HEAD_Y, L_HEAD_S, &c_dim, buf);
     }
     if (tm_nview == 0) {
         return;
@@ -754,13 +819,13 @@ static void drawPane(void)
         } else {
             dotLabel(L_PANE_X, 312.0f, L_HINT_S, &c_grn, "READY");
         }
-        lbButton_LineC(tm_text, L_PANE_X, 344.0f, L_HDR_S, &c_white, "#A START");
+        lineC(L_PANE_X, 344.0f, L_HDR_S, &c_white, "#A START");
         break;
     case TM_CONFIRM:
     case TM_STARTING:
         set = &tm_sets[tm_chosen];
-        lbButton_Box(tm_scrim, L_PANE_BOX_X, L_PANE_BOX_Y, L_PANE_BOX_W,
-                     L_PANE_BOX_H, c_tint);
+        paneBox(L_PANE_BOX_X, L_PANE_BOX_Y, L_PANE_BOX_W, L_PANE_BOX_H,
+                c_tint, false);
         lineC(L_PANE_X, 126.0f, 0.62f, &c_yel, "START THIS");
         lineC(L_PANE_X, 152.0f, 0.62f, &c_yel, "SET?");
         paneTag(190.0f, set->p1_tag, &c_white);
@@ -768,8 +833,7 @@ static void drawPane(void)
         paneTag(242.0f, set->p2_tag, &c_white);
         panePill(284.0f, set->best_of);
         if (tm_state == TM_CONFIRM) {
-            lbButton_LineC(tm_text, L_PANE_X, 340.0f, L_HINT_S, &c_white,
-                           "#A YES   #B BACK");
+            lineC(L_PANE_X, 340.0f, L_HINT_S, &c_white, "#A YES   #B BACK");
         } else {
             lineC(L_PANE_X, 340.0f, L_HINT_S, &c_dim, "STARTING");
             pulse(L_PANE_X + width(L_HINT_S, "STARTING") + 30.0f, 340.0f,
@@ -798,14 +862,17 @@ static void drawPane(void)
 static void redraw(void)
 {
     destroyText();
-    tm_scrim = newText(L_SCRIM_A);
+    tm_scrim = newText(TM_LOOK == 0 ? L_SCRIM_A : TM_LOOK == 4 ? 70 : 120);
+#if TM_LOOK == 3 || TM_LOOK == 4
+    tm_shadow = newText(L_SHADOW_A);
+#endif
     tm_bar = newText(L_BAR_A);
     tm_text = newText(255);
 
+    paneBox(L_LIST_X, L_LIST_Y, L_LIST_W, L_LIST_H, c_scrim, true);
+    paneBox(L_PANE_BOX_X, L_PANE_BOX_Y, L_PANE_BOX_W, L_PANE_BOX_H, c_scrim,
+            true);
     lineC(L_TITLE_X, L_TITLE_Y, L_TITLE_S, &c_white, "TOURNAMENT");
-    lbButton_Box(tm_scrim, L_LIST_X, L_LIST_Y, L_LIST_W, L_LIST_H, c_scrim);
-    lbButton_Box(tm_scrim, L_PANE_BOX_X, L_PANE_BOX_Y, L_PANE_BOX_W,
-                 L_PANE_BOX_H, c_scrim);
 
     switch (tm_state) {
     case TM_SEARCHING:
@@ -832,9 +899,9 @@ static void redraw(void)
         break;
     case TM_CONFIRM:
     case TM_STARTING:
-        /* A second scrim over the first dims the list further (two 59%
-         * layers ~ 83%); the rows go muted as well. */
-        lbButton_Box(tm_scrim, L_LIST_X, L_LIST_Y, L_LIST_W, L_LIST_H, c_scrim);
+        /* A second scrim over the first dims the list further; the rows go
+         * muted as well. */
+        paneBox(L_LIST_X, L_LIST_Y, L_LIST_W, L_LIST_H, c_scrim, false);
         drawHeader();
         drawList(true);
         if (tm_state == TM_CONFIRM) {
@@ -1324,6 +1391,7 @@ void mnTourney_MenuSceneExit(void* exit_data)
     tm_ctx = -1;
     tm_text = NULL;
     tm_bar = NULL;
+    tm_shadow = NULL;
     tm_scrim = NULL;
     tm_state = TM_OFF;
 }

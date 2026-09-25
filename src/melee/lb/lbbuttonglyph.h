@@ -16,6 +16,14 @@ enum lbButton_Shape {
     LB_SHAPE_TRI_UP,
     LB_SHAPE_TRI_DN,
     LB_SHAPE_TRI_RT,
+    LB_SHAPE_QD_TL, /* quarter discs: rounded-panel corners */
+    LB_SHAPE_QD_TR,
+    LB_SHAPE_QD_BL,
+    LB_SHAPE_QD_BR,
+    LB_SHAPE_QR_TL, /* quarter rings: a rounded rim's corners */
+    LB_SHAPE_QR_TR,
+    LB_SHAPE_QR_BL,
+    LB_SHAPE_QR_BR,
     LB_SHAPE_COUNT
 };
 
@@ -55,6 +63,14 @@ f32 lbButton_ShapeAdvance(f32 s, int shape);
 /* A flat rectangle, top-left (x, y), w by h screen pixels: the solid block
  * glyph stretched by per-entry x/y scale. Alpha is the HSD_Text's. */
 void lbButton_Box(HSD_Text* text, f32 x, f32 y, f32 w, f32 h, GXColor c);
+/* Same placement for any shape whose ink fills its cell edge to edge (the
+ * block, the quarter discs and rings). */
+void lbButton_Rect(HSD_Text* text, f32 x, f32 y, f32 w, f32 h, int shape,
+                   GXColor c);
+/* Monochrome line: text runs AND icon shapes in ink, no letters over the
+ * shapes - a drop shadow drawn under a normal line. */
+f32 lbButton_LineMono(HSD_Text* text, f32 x, f32 y, f32 scale,
+                      const GXColor* ink, const char* fmt);
 
 /* Every kiosk text context and text object must be created on this SIS font
  * index (a slot the game never loads) and the font installed right after the
