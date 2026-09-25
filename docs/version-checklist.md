@@ -1,33 +1,52 @@
 # New-version check-yourself list
 
-Manual checks to run **every time a new `SmashTournament-vN.iso` is produced**, each
-one born from a bug we actually hit. If a check fails, the note says the usual cause
-and where it's documented. **This is a living list — add a row whenever a new build
-issue bites us.**
+Manual checks to run **every time a new `tournament.bin` is produced** (since 2026-09-24 the
+kiosk is a module injected into stock Melee 1.02 - see `tournament-module.md`; before that,
+every `SmashTournament-vN.iso`), each one born from a bug we actually hit. If a check fails,
+the note says the usual cause and where it's documented. **This is a living list - add a row
+whenever a new build issue bites us.** Rows tagged *(venue code)* are behaviours that now come
+from Nintendont's own codesets, not our source: verify them, but a difference there is the
+venue's behaviour, not a bug in ours.
 
 Legend: each item is something *you* verify by eye on the running build.
 
 ---
 
-## 0. Build hygiene (only if you built the ISO yourself)
+## 0. Build hygiene (module build)
 
-- [ ] Built with **`python configure.py --non-matching`** then `python -m ninja`.
-      *Plain `configure.py` (matching) silently drops our new TUs → link error
-      "undefined mnTourney_*/lbTourney_*". Our code only exists in the non-matching build.*
+- [ ] Built with **`python tools/build_module.py`** (needs the configured decomp tree:
+      `python configure.py --non-matching` once). The tail of its output lists every patch
+      and ends with `guard: 0x8016D800 == 0x7C0802A6` and the `.bin` size (~26 KB). *A failed
+      external resolution or a gecko overlap stops the build with the symbol/address named -
+      never hand-edit `tournament.bin`.*
+- [ ] **Dolphin picked up the new file**: `SlippiTournamentModule` in
+      `Ishiiruka/Binary/x64/User/Config/Dolphin.ini` points at `melee/build/GALE01/tournament.bin`
+      and `HLE_BS2 = True`; restart the game after every build (the module is read at boot).
+      *An old module + new expectations looks exactly like a silent no-op.*
 - [ ] **No non-ASCII in edited C files** before building (scan for em-dash U+2014,
       smart quotes, etc.). *MWCC parses source as Shift-JIS and errors on them.*
-- [ ] **Gecko codes regenerated for THIS DOL** and synced into both `GALE01r2.ini`
-      copies (Binary + Data). *Every code addresses the shifted DOL by symbol; addresses
-      move whenever our code changes (e.g. `8E38→8EF8` between v8 and v9). A stale
-      `.ini` = vanilla/old addresses on a new DOL = boot crash (R11/R12).*
-      See `ucf-readdressing.md`, `venue-codes-readdressing.md`.
-- [ ] If any on-screen text looks jammed/wrong after an edit, **clean-rebuild the .o**.
-      *A stale `mntourney.o` once rendered "STARTPapa VS Hotel" / wrong confirm text.*
+- [ ] **Gecko list is the generated one**: `Ishiiruka/Data/Sys/GameSettings/GALE01r2.ini` (and
+      the `Binary/x64/Sys` copy) from `Tools/make_venue_ini.py` - `[Gecko_Enabled]` =
+      `Required: Slippi Recording`, `Venue: UCF 0.84`, `Venue: Tournament Mods`, nothing else.
+      *Slippi's General Codes / Slippi Online blank the kiosk text and run the netplay CSS
+      (2026-09-24); a `[creator]` suffix on an enabled name silently disables it.* `EnableCheats
+      = True` and no per-ISO `User/GameSettings/GALE01.ini` override.
+- [ ] If any on-screen text looks jammed/wrong after an edit, **delete `build/module/*.o`** and
+      rebuild. *A stale `mntourney.o` once rendered "STARTPapa VS Hotel" / wrong confirm text.*
+- [ ] For hardware: copy `tournament.bin` to the SD card root next to `tournament.cfg`; the
+      Nintendont boot log must show the module line *and* `Patch:Apply Slippi core`.
 
 ## 1. Boot & menu flow
 
 - [ ] Boots **straight into the set-selection list** — no intro movie, no title
-      sequence, no lingering main menu. *Intro/title skip lives in `bootOnLoad` (gmboot.c).*
+      sequence, no lingering main menu. *Intro/title skip is the module's `tm_bootOnLoad`,
+      branched over vanilla `bootOnLoad` (`tools/module_hooks.txt`).*
+- [ ] **Panel frame is the plain blue main-menu frame with no title** (no green, no
+      "Trophies", no faded "Main Menu"). *The menu hijacks the Trophies row (kind 3); its
+      panel-animation rows and its light colour are patched (2026-09-24). Green = the two
+      inlined light-colour jump tables were not patched; a title = wrong frame range.*
+- [ ] **Trophies is gone from the main menu's reach**: the kiosk never shows the main menu,
+      but if it ever does, the Trophies row opens the set list. Expected.
 - [ ] **No boot crash.** *v7 crashed (`Invalid read … PC=0x803442f0`, __SetSURegs) because
       it entered the set list on frame 1 before menu graphics initialized; v8 gates on
       `cooldown == 0`. See `kiosk-and-defaults-investigation.md`.*
@@ -71,38 +90,27 @@ Legend: each item is something *you* verify by eye on the running build.
       24 kanji only) - icons need textures (design.md sec 12).*
 - [ ] Set-list rows read correctly: `> ROUND  NAME VS NAME  BOx` with proper spacing.
 
-## 4. Venue mods (UCF + Neutral Spawns) — native, NOT gecko
+## 4. Venue mods - the venue's own gecko codesets, NOT our source (since 2026-09-24)
 
-- [ ] **Gecko codes are OFF at the ISO level too** — right-click the ISO → Properties →
-      Gecko Codes tab: nothing checked. *This per-ISO state overrides the global setting
-      and was the cause of a `last_PC = 80001f18` boot crash on 2026-09-21 even with the
-      global flag False. Our Ishiiruka is `Binary/x64/Slippi Dolphin.exe` (launched via
-      Slippi Launcher) — it has no "Enable Cheats" checkbox in Config → General, so the
-      ISO Properties dialog and the ini are the only two levers.*
-- [ ] **`EnableCheats` is OFF in Ishiiruka's `User/Config/Dolphin.ini`.** *Cheats-on makes
-      Slippi Ishiiruka install its own vanilla-addressed `Sys/bootloader.gct` into the
-      codelist (GeckoCode.cpp:171-191), patching vanilla 1.02 addresses into our shifted
-      DOL — the R11 crash, every boot. Debugger callstack 2026-09-21: gecko handler
-      `0x80001f18` → heap garbage `0x81335ae0`, `HSD_ObjAllocAddFree` reading a trashed
-      free-list pointer, all during `mnMain_Scene_OnEnter`. Gecko codes are therefore
-      unusable in Ishiiruka for this build: every venue mod is compiled into the DOL.*
-- [ ] **UCF feels right**: dashback, shield-drop, wiggle-out-of-tumble behave like UCF 0.8.
-      *Native port in `lbucf.c` per `ucf-investigation.md` (data-table IASA wrappers in
-      `ftData_MotionStateList`, installed once from `lbTourney_CSSFrame`, no matched edits).
-      Feel-tested green 2026-09-21. Known gap: `ftCo_Wait_IASA`/`ftCo_DamageFall_IASA` are also
-      called directly from a few attack/damage states, bypassing the table wrap.*
-- [ ] **Neutral spawns** present on stages: on Battlefield a 2P match starts on the **left
-      and right side platforms** (`±38.8, 35.2`), not centre/top. *Native port in
-      `lbneutralspawn.c`, called from `fn_8016E2BC` (gmvs.c) at the asm's exact insertion
-      point (`+0x254`, after `getSpawnPoint`, before the fighter is spawned from it) — a
-      documented matched-function edit. Do NOT try a post-spawn data hook: `rules.on_match_start`
-      fires after vanilla has already spawned every fighter, so a slot-pose write
-      (`Player_80032768`) or even a live `cur_pos`/`coll_data` teleport there does nothing
-      visible (v18/v19 — fighters stayed at vanilla `spawn_point` 2/3). FoD `±41.25` on the
-      side platforms is the venue's real value (cross-checked against the ini asm), not a
-      bug, even though it reads "further out" than vanilla FoD.*
-- [ ] The `[Gecko_Enabled]` entries in `GALE01r2.ini` are inert (cheats off); the
-      re-addressed UCF/Neutral blocks there are kept as reference only.
+Everything in this section is Nintendont's `kernel/gecko/*.bin` applied to the stock DOL
+(`g_ucf_084.bin`, `g_mods_tournament.bin`: neutral spawns, stage striking, stealth nametag
+hide, D-pad rumble toggle) - on hardware by the venue's MeleeCodes toggles, in Dolphin by the
+same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutralspawn.c`,
+`mnstagesel.c`/`ifnametag.c` edits) live only on the `reporter` branch / tag
+`shifted-dol-final`. History of why they existed: `ucf-investigation.md`,
+`ucf-readdressing.md`, `venue-codes-readdressing.md`, design.md R11/R12.
+
+- [ ] **UCF feels right** *(venue code)*: dashback, shield-drop, wiggle-out-of-tumble behave
+      like UCF 0.84.
+- [ ] **Neutral spawns** *(venue code)*: on Battlefield a 2P match starts on the **left and
+      right side platforms**, not centre/top. FoD `+/-41.25` on the side platforms is the venue's
+      real value, not a bug.
+- [ ] **A `.slp` is written** for every game (Dolphin: `SlippiReplayDir`; Wii: the USB drive).
+      *The whole point of the module architecture; if it stops, a patch is colliding with the
+      Slippi core codes - `build_module.py` checks overlaps at build time, so look for a
+      changed codeset first.*
+- [ ] **Nothing of ours in the DOL**: the Nintendont boot log shows no "Tournament build ...
+      skipping" line (that gate is reverted); Dolphin's ISO properties show the plain 1.02 image.
 
 ## 5. Relay & start.gg (before the game can list anything)
 
@@ -128,9 +136,9 @@ Legend: each item is something *you* verify by eye on the running build.
 
 ## 7. CSS / SSS / in-match venue features (v22-v24, native)
 
-- [ ] **D-pad UP/DOWN on the CSS toggles that port's rumble** with the vibration-menu
-      pulse, and the **selection hand shakes** on every toggle (v23, `lbtourney.c`
-      `kickHand`/`stepHand` via `mnCharSel_CursorHandOffset`). *Once a player has picked
+- [ ] **D-pad UP/DOWN on the CSS toggles that port's rumble** *(venue code since 2026-09-24;
+      the v23 selection-hand shake was ours and is retired)*. The module mirrors the port's
+      rumble setting into the picked nametag's flag every CSS frame. *Once a player has picked
       a nametag, Melee takes in-match rumble from the TAG's flag, not the port's
       (`gm_RumbleEnabledForPlayer`); the toggle and the tag pick keep both in step. If
       rumble "ignores" the toggle, that coupling regressed.*
@@ -170,10 +178,10 @@ Legend: each item is something *you* verify by eye on the running build.
       button discs (A green, B red, X/Y light grey, Z purple square, L/R grey squares,
       Start grey pill, C-stick yellow), the confirm/error hints `(A) YES (B) BACK`, the
       filter line `(L) (R)`, and the CSS hint `(Z)+(X) FOR HANDWARMER` / `(Z)+(X) CANCELS
-      HANDWARMER`. *Mechanism: 4 shape glyphs appended to the SIS font atlas
-      (`sislib_font_extra.inc` from `tools/gen_button_glyphs.py`, indices 287-290, SJIS
-      0x8540-0x8543) + one row each in the three lookup tables in hsd_3A76.c (now
-      `[0x248]`); `lbbuttonglyph.c` draws an icon as a coloured shape entry with the
+      HANDWARMER`. *Mechanism (module era): 4 shape glyphs in a module-owned SIS font slot
+      (index 4, `lbbuttonglyph_shapes.inc` from `tools/gen_button_glyphs.py`, glyph codes
+      0x4000-0x4003, installed into `HSD_SisLib_804D1124[4]` whenever a kiosk text context is
+      created; icons drawn at 1.25x the text scale since 2026-09-24); `lbbuttonglyph.c` draws an icon as a coloured shape entry with the
       font's own letter over it, all positioned from the kerning table, and translates
       `+ ( ) / ! ?` to their SJIS pairs so callers write plain ASCII with `#A`-style
       markers. `lbButton_Measure` gives exact widths, so the title and hint bars are now
@@ -213,16 +221,14 @@ Legend: each item is something *you* verify by eye on the running build.
       the CSS the flag is **cleared automatically**. *Informational: the C-stick score binds still decide
       what is scored. `forceKioskDefaults` pins `stage_sel = 0` so a memcard with
       "random stage" mode cannot skip the SSS for real games.*
-- [ ] **SSS shows ONLY the six legal stages** from the first frame (BF, FD, FoD, YS,
-      DL64, PS; every other icon hidden and unhoverable; the random icon stays). *v25,
-      matching the venue Wii. Filter is by stage id (`sssIsLegal`), not `stage_mask`.*
-- [ ] **Stage striking: X over a stage removes it** - icon gone, **no hover outline or
-      preview left on the empty spot**, A there is refused with the buzz, random skips
-      it. **Y puts all struck stages back** (v26, mis-strike recovery); strikes also
-      reset on every SSS entry. *v24 kept struck stages hoverable so the outline
-      lingered - user flagged it. If every legal stage is struck, random ignores the
-      strikes rather than hanging.*
-- [ ] **Sheik's nametag vanishes during Vanish** (up-B), Zelda's during Farore's Wind,
-      and under a cloaking device: `fn_802FCC44` (ifnametag.c) now also hides the tag
-      while the fighter's own `invisible` bit is set. Tags are hidden during the entry
-      animation too (same bit) - expected.
+- [ ] **SSS legal-stage filter** *(venue code - VERIFY)*: the v25 six-only filter
+      (`sssIsLegal`, hidden/unhoverable icons) was ours and is retired; the random set is still
+      the six legal stages via `stage_mask`. Check what the venue's striking code shows on the
+      SSS and rewrite this row to match; update the poster if the six-only claim is no longer true.
+- [ ] **Stage striking** *(venue code since 2026-09-24)*: X over a stage strikes it
+      (works, 2026-09-24). **VERIFY whether Y still restores struck stages** - the v26
+      Y-reset was ours; if the venue code has no un-strike, drop the Y row from the poster.
+      *History: v24-v26 native striking in `mnstagesel.c` (hover outline bug, Y reset).*
+- [ ] **Sheik's nametag vanishes during Vanish** (up-B) *(venue code - the stealth
+      nametag hook in `g_mods_tournament.bin`, verified 2026-09-24)*. *Our `ifnametag.c` edit
+      is retired.*
