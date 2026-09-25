@@ -95,6 +95,14 @@ Legend: each item is something *you* verify by eye on the running build.
       with FPS 0 and `Memory Empty in "sislib.c"` in Dolphin's log means that hook is
       missing or the screen grew past the pool: cut entries, the `li` immediate cannot
       go above 0x7FFF (0xC000 sign-extends to a negative size and panics at boot).*
+- [ ] **The TOURNAMENT title is the wordmark texture** (bold italic, drop shadow) in the
+      panel's top-left title tab, not SIS text; it survives redraws and disappears on B-back
+      to the main menu. *`lbwordmark.c` + `lbwordmark_tex.inc` (regenerate with
+      `python tools/gen_wordmark.py`, needs the Franklin Gothic Medium font on the PC that
+      builds). Invisible wordmark = one of the two `lb_800138EC` traps: its camera priority
+      must be above the text context's 0x13 (we use 0x14) and its alpha argument is inverted
+      (0 = opaque; 0xFF drew nothing for an hour on 2026-09-25). Garbled = IA8 tiling/byte
+      order (texel = alpha byte, intensity byte, 4x4 tiles).*
 - [ ] **Long list:** with more than 8 slots the header shows a small up-triangle after the
       position once scrolled, `MORE` with a down-triangle sits inside the scrim under the
       last row, left/right on the stick pages by 7, X jumps to the set marked PLAYING HERE
@@ -113,7 +121,9 @@ Legend: each item is something *you* verify by eye on the running build.
       the pane with both tags and `A YES  B BACK`, the hint bar says CHECK BOTH TAGS FIRST;
       a dead relay shows `NO LINK TO THE RELAY` + the message + `YOUR LIST IS STILL HERE`
       or `NO SETS LOADED YET`, and the pane shows `STATION n / RELAY / a.b.c.d / PORT p`
-      with a red `NO LINK` dot (a relay-reported error says `THE RELAY SAID NO` / `REFUSED`).
+      with a red `NO LINK` dot (a relay-reported error says `THE RELAY SAID NO` / `REFUSED`;
+      a shared-secret mismatch says `RELAY SECRET MISMATCH` / `CHECK THE SECRET ON THIS
+      CARD` / `BAD SECRET`, design R15).
       *Station/relay come from `exi_poll_hdr`, which the kernel/forwarder fill on every
       poll; Dolphin shows station 0 (design R10). The confirm view has not been captured
       in the dev loop (no controller input there) - eyeball it on the Wii.*
