@@ -91,6 +91,15 @@ Legend: each item is something *you* verify by eye on the running build.
       last row, left/right on the stick pages by 7, X jumps to the set marked PLAYING HERE
       (amber), Y keeps the cursor on the same set after the reload. *Tested with the
       400-set fake (56 shown, the wire cap).*
+- [ ] **Cold boot waits for the beacon, never errors on it:** with the relay up, the list
+      appears without an intermediate error; with the relay down, `LOOKING FOR THE RELAY`
+      pulses for 10 s, then `NO RELAY FOUND` / `NO BEACON HEARD FOR 10 SECONDS` / `IS THIS
+      SETUP ON THE RELAY'S NETWORK?` with a red `NOT FOUND` dot; A searches again. *The
+      kernel/forwarder answer a request sent before their first beacon with a synthetic
+      "no relay found yet" (design R15); the module peeks `exi_poll_hdr.relay_ip` first
+      (`lbRelayExi_Peek`) and only then sends LIST_SETS. In Dolphin the beacon listener
+      starts on the first EXI command, so the very first boot after launch may search for
+      up to 2 s.*
 - [ ] **Confirm / error stay in the frame:** A dims the list and asks `START THIS SET?` in
       the pane with both tags and `A YES  B BACK`, the hint bar says CHECK BOTH TAGS FIRST;
       a dead relay shows `NO LINK TO THE RELAY` + the message + `YOUR LIST IS STILL HERE`
