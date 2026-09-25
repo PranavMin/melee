@@ -39,6 +39,9 @@ u16 mnTourney_DescIndices[1] = { 0 };
 
 /* Menu flow (design 6.1):
  *
+ *   [Searching]   no relay known yet: the host learns the relay's address
+ *                 from its UDP beacon (design R15), at most a couple of
+ *                 seconds; the first request waits for it
  *   [Loading]     LIST_SETS in flight
  *   Set list      up/down moves, left/right pages, L/R first-letter tag
  *                 filter, X jumps to the set this station is playing, Y
@@ -60,6 +63,7 @@ u16 mnTourney_DescIndices[1] = { 0 };
 
 enum mnTourney_State {
     TM_OFF, /* menu not active */
+    TM_SEARCHING,
     TM_LOADING,
     TM_LIST,
     TM_CONFIRM,
@@ -68,6 +72,7 @@ enum mnTourney_State {
 };
 
 #define TM_TIMEOUT_FRAMES (5 * 60)
+#define TM_SEARCH_FRAMES (10 * 60) /* beacons come every 2 s */
 /* Largest row count that fits the 4 KB poll buffer alongside the headers. */
 #define TM_MAX_SETS                                                          \
     ((int) ((sizeof(((struct lbRelayExi_PollBuf*) 0)->payload) -             \
@@ -771,13 +776,19 @@ static void drawPane(void)
                   L_HINT_S);
         }
         break;
+    case TM_SEARCHING:
+        paneWhereAmI(126.0f);
+        dotLabel(L_PANE_X, 236.0f, L_HINT_S, &c_amb, "SEARCHING");
+        break;
     case TM_LOADING:
         paneWhereAmI(126.0f);
         break;
     case TM_ERROR:
         paneWhereAmI(126.0f);
         dotLabel(L_PANE_X, 236.0f, L_HINT_S, &c_red,
-                 tm_err_link ? "NO LINK" : "REFUSED");
+                 tm_ph.relay_ip == 0 ? "NOT FOUND"
+                 : tm_err_link       ? "NO LINK"
+                                     : "REFUSED");
         break;
     default:
         break;
@@ -797,6 +808,11 @@ static void redraw(void)
                  L_PANE_BOX_H, c_scrim);
 
     switch (tm_state) {
+    case TM_SEARCHING:
+        centredAt(L_LIST_CX, 214.0f, 0.62f, &c_dim, "LOOKING FOR THE RELAY");
+        pulse(L_LIST_CX, 250.0f, 0.62f);
+        centredAt(L_HINT_CX, L_HINT_Y, L_HINT_S, &c_white, "#B MENU");
+        break;
     case TM_LOADING:
         centredAt(L_LIST_CX, 214.0f, 0.62f, &c_dim, "LOADING SETS");
         pulse(L_LIST_CX, 250.0f, 0.62f);
@@ -828,12 +844,16 @@ static void redraw(void)
         break;
     case TM_ERROR:
         lineC(L_TEXT_X, 150.0f, 0.62f, &c_red,
-              tm_err_link ? "NO LINK TO THE RELAY" : "THE RELAY SAID NO");
+              tm_ph.relay_ip == 0 ? "NO RELAY FOUND"
+              : tm_err_link       ? "NO LINK TO THE RELAY"
+                                  : "THE RELAY SAID NO");
         wrap2(L_TEXT_X, 190.0f, 26.0f, L_HDR_S, 0.45f, L_LIST_W - 24.0f, &c_white,
               tm_errmsg);
         lineC(L_TEXT_X, 262.0f, 0.45f, &c_dim,
               tm_count > 0 ? "YOUR LIST IS STILL HERE" : "NO SETS LOADED YET");
-        lineC(L_TEXT_X, 286.0f, 0.45f, &c_dim, "TELL THE TO IF THIS REPEATS");
+        lineC(L_TEXT_X, 286.0f, 0.45f, &c_dim,
+              tm_ph.relay_ip == 0 ? "IS THIS SETUP ON THE RELAY'S NETWORK?"
+                                  : "TELL THE TO IF THIS REPEATS");
         centredAt(L_HINT_CX, L_HINT_Y, L_HINT_S, &c_white,
                   "#A RETRY   #B BACK");
         break;
@@ -874,6 +894,38 @@ static void sendList(void)
         fail("EXI ERROR");
     }
     tm_dirty = true;
+}
+
+/* Has the host found the relay yet? Reads the poll image for its
+ * exi_poll_hdr (kept for the pane). -1 = EXI failure, 0 = no beacon heard,
+ * 1 = relay known. */
+static int peekRelay(void)
+{
+    struct exi_poll_hdr ph;
+    if (!lbRelayExi_Peek(&ph)) {
+        return -1;
+    }
+    tm_ph = ph;
+    return tm_ph.relay_ip != 0 ? 1 : 0;
+}
+
+/* The list request, held back until the host knows the relay: a request
+ * sent before the first beacon is answered "no relay found yet" by the
+ * host itself, which on a cold boot would greet every player with an
+ * error. Searching shows its own view and gives up after TM_SEARCH_FRAMES. */
+static void startList(void)
+{
+    int r = peekRelay();
+    if (r < 0) {
+        fail("EXI ERROR");
+    } else if (r > 0) {
+        sendList();
+    } else {
+        tm_retry_cmd = CMD_LIST_SETS;
+        tm_timeout = 0;
+        tm_state = TM_SEARCHING;
+        tm_dirty = true;
+    }
 }
 
 static void sendStart(void)
@@ -1011,7 +1063,7 @@ static void listInputs(u64 buttons)
         /* Refresh; the cursor goes back onto the same set afterwards. */
         sfxForward();
         tm_keep_id = tm_nview > 0 ? tm_sets[tm_view[tm_sel]].set_id : 0;
-        sendList();
+        startList();
         return;
     }
     if (buttons & MenuInput_Back) {
@@ -1080,6 +1132,23 @@ void mnTourney_Think(HSD_GObj* gobj)
     }
 
     switch (tm_state) {
+    case TM_SEARCHING: {
+        int r = peekRelay();
+        if (r < 0) {
+            fail("EXI ERROR");
+        } else if (r > 0) {
+            sendList();
+        } else if (buttons & MenuInput_Back) {
+            sfxBack();
+            exitToMainMenu();
+            return;
+        } else if (++tm_timeout > TM_SEARCH_FRAMES) {
+            fail("NO BEACON HEARD FOR 10 SECONDS");
+        } else if (tm_frame % L_PULSE_FRAMES == 0) {
+            tm_dirty = true;
+        }
+        break;
+    }
     case TM_LOADING:
         pollRelay();
         if (tm_state == TM_LOADING && (buttons & MenuInput_Back)) {
@@ -1131,7 +1200,7 @@ void mnTourney_Think(HSD_GObj* gobj)
         } else if (buttons & MenuInput_Confirm) {
             sfxForward();
             if (tm_retry_cmd == CMD_LIST_SETS) {
-                sendList();
+                startList();
             } else {
                 sendStart();
             }
@@ -1200,7 +1269,7 @@ static void enterTournament(HSD_GObj* gobj)
     proc = HSD_GObj_SetupProc(GObj_Create(0, 1, 0x80), mnTourney_Think, 0);
     proc->flags_3 = HSD_GObj_804D783C;
     HSD_GObjFree(gobj);
-    sendList();
+    startList();
 }
 
 void mnTourney_ArmAutoEnter(void)

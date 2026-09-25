@@ -63,6 +63,13 @@ const struct lbRelayExi_PollBuf* lbRelayExi_Response(void);
 
 bool lbRelayExi_InFlight(void);
 
+/* Read the poll image without a request in flight, for its exi_poll_hdr:
+ * the host fills station and the relay address it has found (design R15:
+ * the relay announces itself by UDP beacon; relay_ip stays 0 until one is
+ * heard). False on an EXI failure, or while a request is in flight (use
+ * lbRelayExi_Poll then). */
+bool lbRelayExi_Peek(struct exi_poll_hdr* out);
+
 /* Forget the in-flight request (caller-side timeout). The next poll after a
  * new request may still race a stale completion; callers check that
  * Response()->hdr.cmd echoes what they sent. */

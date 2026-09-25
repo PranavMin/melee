@@ -83,25 +83,19 @@ bool lbRelayExi_Request(u8 cmd, const void* payload, u16 len)
     return true;
 }
 
-s32 lbRelayExi_Poll(void)
+/* One EXI_RELAY_POLL transaction: the 4 KB image lands in resp_buf. */
+static bool readPollImage(void)
 {
     int err;
     u32 cmd_word;
-    s32 state;
-
-    if (!in_flight) {
-        return RELAY_IDLE;
-    }
 
     DCInvalidateRange(resp_buf, sizeof(resp_buf));
     if (!EXILock(LB_RELAY_EXI_CHAN, LB_RELAY_EXI_DEV, NULL)) {
-        in_flight = false;
-        return -1;
+        return false;
     }
     if (!EXISelect(LB_RELAY_EXI_CHAN, LB_RELAY_EXI_DEV, LB_RELAY_EXI_FREQ)) {
         EXIUnlock(LB_RELAY_EXI_CHAN);
-        in_flight = false;
-        return -1;
+        return false;
     }
     cmd_word = (u32) EXI_RELAY_POLL << 24;
     err = 0;
@@ -111,8 +105,17 @@ s32 lbRelayExi_Poll(void)
     err |= !EXISync(LB_RELAY_EXI_CHAN);
     err |= !EXIDeselect(LB_RELAY_EXI_CHAN);
     EXIUnlock(LB_RELAY_EXI_CHAN);
+    return !err;
+}
 
-    if (err) {
+s32 lbRelayExi_Poll(void)
+{
+    s32 state;
+
+    if (!in_flight) {
+        return RELAY_IDLE;
+    }
+    if (!readPollImage()) {
         in_flight = false;
         return -1;
     }
@@ -121,6 +124,15 @@ s32 lbRelayExi_Poll(void)
         in_flight = false;
     }
     return state;
+}
+
+bool lbRelayExi_Peek(struct exi_poll_hdr* out)
+{
+    if (in_flight || !readPollImage()) {
+        return false;
+    }
+    *out = ((struct lbRelayExi_PollBuf*) resp_buf)->ph;
+    return true;
 }
 
 const struct lbRelayExi_PollBuf* lbRelayExi_Response(void)
