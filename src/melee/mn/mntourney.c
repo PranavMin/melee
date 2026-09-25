@@ -25,6 +25,18 @@
 
 u16 mnTourney_DescIndices[1] = { 0 };
 
+/* Which menu-kind row hosts the Tournament menu. The DOL build appends its
+ * own row (MENU_KIND_TOURNAMENT); the module, running on a vanilla DOL whose
+ * table cannot grow, takes over MENU_KIND_TOY ("Trophies": its code region is
+ * where the module lives, so that menu must never run anyway) - the loader
+ * patches that row's description_indices / selection_count / think
+ * (tools/module_hooks.txt). */
+#ifdef TOURNAMENT_MODULE
+#define TM_MENU_KIND MENU_KIND_TOY
+#else
+#define TM_MENU_KIND MENU_KIND_TOURNAMENT
+#endif
+
 /* Menu flow (design 6.1):
  *
  *   [Loading...]  LIST_SETS in flight
@@ -602,7 +614,7 @@ static void enterTournament(HSD_GObj* gobj)
     setMenuVisualsHidden(false);
     mn_804D6BC8.cooldown = 5;
     mn_804A04F0.prev_menu = mn_804A04F0.cur_menu;
-    mn_804A04F0.cur_menu = MENU_KIND_TOURNAMENT;
+    mn_804A04F0.cur_menu = TM_MENU_KIND;
     mn_804A04F0.hovered_selection = 0;
     proc = HSD_GObj_SetupProc(GObj_Create(0, 1, 0x80), mnTourney_Think, 0);
     proc->flags_3 = HSD_GObj_804D783C;

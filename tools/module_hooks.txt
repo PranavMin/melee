@@ -1,0 +1,28 @@
+# Tournament module hook table (tools/build_module.py).
+# One patch per line, applied to the VANILLA Melee 1.02 DOL in RAM by the loaders
+# (Nintendont kernel / Ishiiruka fork) after the module blob is copied in:
+#   ptr    <addr> <module symbol>   write the symbol's address at addr
+#   branch <addr> <module symbol>   write "b <symbol>" at addr (function hijack)
+#   word   <addr> <hex>             write a literal 32-bit word
+# Addresses are vanilla (config/GALE01/symbols.txt); the builder verifies each
+# against orig/GALE01/sys/main.dol where noted.
+
+# gmscdata.c scene table `scenes` (0x803DA920, rows of 0x14: kind, on_frame,
+# on_enter, on_exit, unused).
+ptr    0x803DA940 mnTourney_MenuSceneExit   # GS_MENU on_exit (vanilla NULL)
+ptr    0x803DA94C lbTourney_MatchFrame      # GS_VS on_frame (vanilla gm_Scene_Vs_OnFrame)
+ptr    0x803DA954 lbTourney_MatchExit       # GS_VS on_exit  (vanilla gm_Scene_Vs_OnExit)
+ptr    0x803DA9B0 lbTourney_CSSFrame        # GS_CSS on_frame (vanilla mnCharSel_Scene_OnFrame)
+ptr    0x803DA9B8 lbTourney_CSSExit         # GS_CSS on_exit  (vanilla mnCharSel_Scene_OnExit)
+
+# mnmain.c menu-kind table mn_803EB6B0 (rows of 0x14: anim_loop, start_frame,
+# description_indices, selection_count, think).
+ptr    0x803EB6C0 mnTourney_MainMenuThink   # row 0 (MAIN) think (vanilla mn_8022DB10)
+# The Tournament menu hijacks row 3 (MENU_KIND_TOY, "Trophies"): the trophy
+# code region hosts the module, so that menu must never run anyway.
+ptr    0x803EB6F4 mnTourney_DescIndices     # row 3 description_indices
+word   0x803EB6F8 0x01000000                # row 3 selection_count = 1
+ptr    0x803EB6FC mnTourney_Think           # row 3 think (vanilla mn_8022D34C)
+
+# gmboot.c: boot straight to the menu.
+branch 0x801BF948 tm_bootOnLoad             # bootOnLoad (vanilla body: 0x60 bytes)
