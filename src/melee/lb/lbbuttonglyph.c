@@ -38,7 +38,10 @@ void lbButton_InstallFont(void)
     HSD_SisLib_804D1124[TM_FONT] = (SIS*) &tm_font;
 }
 
-/* Letter drawn over the shape, as a fraction of the shape's scale. */
+/* Icons are drawn a bit larger than the text they sit in (user, 2026-09-24)
+ * and re-centred on the text's ink line; the letter over the shape is a
+ * fraction of the shape's scale. */
+#define ICON_SCALE 1.25f
 #define LETTER_SCALE 0.58f
 
 struct lbButton_Def {
@@ -190,7 +193,8 @@ static const struct lbButton_Def* findDef(char marker)
 
 static f32 shapeAdvance(int shape, f32 s)
 {
-    return (CELL + 2.0f - shape_kern[shape][0] - shape_kern[shape][1]) * s;
+    return (CELL + 2.0f - shape_kern[shape][0] - shape_kern[shape][1]) * s *
+           ICON_SCALE;
 }
 
 /* One entry holding a single shape glyph, code 0x4000+shape. The ASCII
@@ -218,24 +222,28 @@ static f32 drawIcon(HSD_Text* text, f32 x, f32 y, f32 s,
                     const struct lbButton_Def* d)
 {
     const u8* k = shape_kern[d->shape];
-    f32 cx = x + (1.0f + 0.5f * (CELL - k[0] - k[1])) * s;
+    f32 S = s * ICON_SCALE; /* the shape's own scale */
+    f32 cx = x + (1.0f + 0.5f * (CELL - k[0] - k[1])) * S;
     /* Vertical: every entry's scale opcode is pushed at its start and popped
      * at its end, so each line is measured against the text's default scale
      * (1.0) and a glyph at scale s is drawn 32*(1-s) below the entry's y
-     * (bottom-aligned to a 32-unit line). The shape's ink centre is thus at
-     * y + 32 - 16s; the letter, at scale t, must be given
-     * ly = cy_ink - 32 + 16.5t so its centre (rows 2..28) lands there. */
-    f32 cy = y + CELL - 0.5f * CELL * s; /* shape ink centre on screen */
+     * (bottom-aligned to a 32-unit line). A letter's ink (rows 2..28,
+     * centre 15) at the text scale s is therefore centred at y + 32 - 17s;
+     * the shape (ink centre 16) at scale S is given sy = y + 16S - 17s so
+     * its centre lands on that same line. The letter over it, at scale t,
+     * is given ly = cy - 32 + 16.5t. */
+    f32 cy = y + CELL - 17.0f * s; /* the text line's ink centre on screen */
+    f32 sy = y + 16.0f * S - 17.0f * s;
     GXColor c;
     int entry;
 
-    entry = shapeEntry(text, x, y, d->shape);
-    HSD_SisLib_803A7548(text, entry, s, s);
+    entry = shapeEntry(text, x, sy, d->shape);
+    HSD_SisLib_803A7548(text, entry, S, S);
     c = d->fill;
     HSD_SisLib_803A74F0(text, entry, &c);
 
     if (d->letters[0] != '\0') {
-        f32 t = s * LETTER_SCALE;
+        f32 t = S * LETTER_SCALE;
         f32 lx = cx - inkCentre(d->letters, t);
         f32 ly = cy - CELL + 16.5f * t;
         entry = HSD_SisLib_803A6B98(text, lx, ly, "%s", d->letters);

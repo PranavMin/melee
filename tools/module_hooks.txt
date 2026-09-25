@@ -27,18 +27,18 @@ word   0x803EB6EC 0x00000000                # row 3 anim_loop = NULL (was the Tr
 word   0x803EB6F0 0x00000000                # row 3 start_frame = 0.0f (frame 60 = green Trophies frame)
 # The menu PANEL's title/frame animation per kind lives in a second table,
 # mn_803EAE8C[kind][3] (AnimLoopSettings {start,end,loop} x3: enter, leave,
-# idle). Kind 3's rows are the green "Trophies" frames (600-799); the old
-# DOL build's kind 35 read past that table and got the plain frame, so row
-# 3 gets exactly those words: {0,49,-0.1} {50,250,50} {0,10,-0.1}.
+# idle). Kind 3's rows are the green "Trophies" frames (600-799). Row 3 gets
+# the MAIN menu's rows (kind 0: enter 0-99, no leave, idle 100-199): the
+# plain frame with the bottom description box and no title.
 word   0x803EAEF8 0x00000000                # [3][0].start  0
-word   0x803EAEFC 0x42440000                # [3][0].end    49
-word   0x803EAF00 0xBDCCCCCD                # [3][0].loop   -0.1
-word   0x803EAF04 0x42480000                # [3][1].start  50
-word   0x803EAF08 0x437A0000                # [3][1].end    250
-word   0x803EAF0C 0x42480000                # [3][1].loop   50
-word   0x803EAF10 0x00000000                # [3][2].start  0
-word   0x803EAF14 0x41200000                # [3][2].end    10
-word   0x803EAF18 0xBDCCCCCD                # [3][2].loop   -0.1
+word   0x803EAEFC 0x42C60000                # [3][0].end    99
+word   0x803EAF00 0x00000000                # [3][0].loop   0
+word   0x803EAF04 0x00000000                # [3][1].start  0
+word   0x803EAF08 0x00000000                # [3][1].end    0
+word   0x803EAF0C 0x00000000                # [3][1].loop   0
+word   0x803EAF10 0x42C80000                # [3][2].start  100
+word   0x803EAF14 0x43470000                # [3][2].end    199
+word   0x803EAF18 0x42C80000                # [3][2].loop   100
 ptr    0x803EB6F4 mnTourney_DescIndices     # row 3 description_indices
 word   0x803EB6F8 0x01000000                # row 3 selection_count = 1
 ptr    0x803EB6FC mnTourney_Think           # row 3 think (vanilla mn_8022D34C)
