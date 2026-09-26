@@ -85,6 +85,9 @@ static bool handwarmer;
  * light press must do (user, 2026-09-25; 49 did not register on their pad,
  * 25 next). The friction is the two-trigger one-second hold, not the depth. */
 #define LB_TOURNEY_CLAIM_PULL_RAW 25
+#ifndef LB_TOURNEY_TRIGGER_READOUT
+#define LB_TOURNEY_TRIGGER_READOUT 1 /* dev: raw L/R per port, bottom-left */
+#endif
 static s8 claim_port = -1;   /* port that claimed entrant 1, or -1 */
 static u8 claim_hold[4];     /* frames each port has held L + R */
 #ifndef LB_TOURNEY_DEMO_CLAIM
@@ -875,6 +878,19 @@ static void redraw(void)
         ovLine(css_shadow, css_text, 578.0f - lbButton_Measure(0.50f, fmt),
                8.0f, 0.50f, handwarmer ? &ov_amb : &ov_white, fmt);
     }
+#if LB_TOURNEY_TRIGGER_READOUT
+    {
+        /* Raw trigger values as the game sees them (0-140), to pick the
+         * claim threshold from a real pad. Dev build only. */
+        char line[64];
+        sprintf(line, "L %d R %d   L %d R %d   L %d R %d   L %d R %d",
+                HSD_PadCopyStatus[0].analogL, HSD_PadCopyStatus[0].analogR,
+                HSD_PadCopyStatus[1].analogL, HSD_PadCopyStatus[1].analogR,
+                HSD_PadCopyStatus[2].analogL, HSD_PadCopyStatus[2].analogR,
+                HSD_PadCopyStatus[3].analogL, HSD_PadCopyStatus[3].analogR);
+        ovLine(css_shadow, css_text, 30.0f, 430.0f, 0.50f, &ov_white, line);
+    }
+#endif
 
     /* The CSS's own rules banner carries the score and the status: score
      * "NAME P1   0 - 0   P3 NAME" (entrant 1 left, digits yellow, amber
@@ -1135,6 +1151,11 @@ void lbTourney_CSSFrame(void)
             css_dirty = true;
         }
         css_frames++;
+#if LB_TOURNEY_TRIGGER_READOUT
+        if (css_frames % 6 == 0) {
+            css_dirty = true;
+        }
+#endif
         if ((last_failed || entrantPort(1) < 0 || entrantPort(2) < 0) &&
             css_frames % 120 == 0)
         {
