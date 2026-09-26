@@ -237,7 +237,7 @@ same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutra
       button discs (A green, B red, X/Y light grey, Z purple square, L/R grey squares,
       Start grey pill, C-stick yellow), the confirm/error hints `(A) YES (B) BACK`, the
       filter line `(L) (R)`, and the CSS hint `(Z)+(X) WARMUP` / `(Z)+(X) CANCELS`
-      (top-left corner, x 0 y -4, since 2026-09-25 evening - it was top-right beside BACK
+      (top-left corner, x 10 y -8, since 2026-09-25 evening - it was top-right beside BACK
       for a few hours; the short wording stays). *Mechanism (module era): 4 shape glyphs in a module-owned SIS font slot
       (index 4, `lbbuttonglyph_shapes.inc` from `tools/gen_button_glyphs.py`, glyph codes
       0x4000-0x4003, installed into `HSD_SisLib_804D1124[4]` whenever a kiosk text context is
