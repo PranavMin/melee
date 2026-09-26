@@ -266,7 +266,7 @@ same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutra
       halt on the CSS means that hook.*
 - [ ] **Port claim (2026-09-25, user requirement - tags are optional):** on the CSS with a
       set active, a human port holding **L + R for 1 s** (each trigger at its click OR
-      any analog press, raw 25 of 140 (49 did not register on the user's pad) - not every controller
+      any analog press, raw 49 of 140 (the user's light R press reads 50) - not every controller
       clicks) becomes the player named first on the set (banner `ALPHA IS P3` for 5 s); the other human port is the other player, so
       both port labels appear. **L + R + B** held 1 s clears it (`PORTS CLEARED`); the
       other controller holding L + R moves the claim (the undo). While nobody is placed
