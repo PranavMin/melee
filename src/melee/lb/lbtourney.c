@@ -68,6 +68,22 @@ static u32 css_frames; /* CSS frames with a set: paces the SEND FAILED flip */
  * binds are unaffected: they stay the one source of score truth. */
 #define LB_TOURNEY_HANDWARMER_RED_FRAMES (60 * 60) /* 1:00 */
 static bool handwarmer;
+
+/* Port claim (user, 2026-09-25). Tags are optional - a tag cut to four
+ * characters can read badly - so the player named on the LEFT of the set
+ * (entrant 1) can instead hold L + R for a second on their own controller;
+ * the other human port is then entrant 2. Holding L + R + B clears it, and
+ * the right player holding L + R again re-claims (the undo). A claim
+ * overrides the tags and lasts for the set. Once both ports are known the
+ * scoreboard shows the lower port on the left. */
+#define LB_TOURNEY_CLAIM_HOLD_FRAMES 60
+static s8 claim_port = -1;   /* port that claimed entrant 1, or -1 */
+static u8 claim_hold[4];     /* frames each port has held L + R */
+#ifndef LB_TOURNEY_DEMO_CLAIM
+#define LB_TOURNEY_DEMO_CLAIM 0 /* dev loop only: fake a claim by port 3 */
+#endif
+static void setAutoNote(const char* msg);
+static int leftEntrant(void);
 static bool stage_sel_forced; /* rules->stage_sel is Random for this start */
 
 /* Auto-score state (see autoScoreFromMatch below). */
@@ -187,6 +203,18 @@ static void assignEntrants(const u8* tags, int n, u8* out)
 
 /* The CSS port playing as `entrant` (1 or 2) by the rule above, or -1. Only
  * human doors count; the tags of CPU doors cannot be picked anyway. */
+/* A port with a player behind it (slot HMN). The headless Dolphin loop
+ * leaves its slots N/A, so the demo build treats port 1 as human. */
+static bool portIsHuman(int port)
+{
+#if LB_TOURNEY_DEMO_CLAIM
+    if (port == 0) {
+        return true;
+    }
+#endif
+    return mnCharSel_PortSlotType(port) == Gm_PKind_Human;
+}
+
 static int entrantPort(int entrant)
 {
     u8 tags[4];
@@ -194,8 +222,19 @@ static int entrantPort(int entrant)
     int ports[4];
     int n = 0;
     int port;
+    if (claim_port >= 0) {
+        if (entrant == 1) {
+            return claim_port;
+        }
+        for (port = 0; port < 4; port++) {
+            if (port != claim_port && portIsHuman(port)) {
+                return port;
+            }
+        }
+        return -1;
+    }
     for (port = 0; port < 4; port++) {
-        if (mnCharSel_PortSlotType(port) == Gm_PKind_Human) {
+        if (portIsHuman(port)) {
             ports[n] = port;
             tags[n] = mnCharSel_PortNametag(port);
             n++;
@@ -224,6 +263,8 @@ void lbTourney_SetCurrent(const struct set_entry* set)
     match_seen = false;
     auto_pending = 0;
     auto_note_frames = 0;
+    claim_port = -1;
+    memset(claim_hold, 0, sizeof(claim_hold));
     has_set = true;
     css_dirty = true;
     writeNametag(0, cur_set.p1_tag, "P1");
@@ -234,6 +275,7 @@ void lbTourney_ClearCurrent(void)
 {
     has_set = false;
     pending_cmd = 0;
+    claim_port = -1;
     css_dirty = true;
 }
 
@@ -343,10 +385,56 @@ static int cstickDir(const HSD_PadStatus* pad)
     return y > 0 ? CDIR_UP : CDIR_DOWN;
 }
 
+/* "CHARLIE IS P3" */
+static void claimNote(int port)
+{
+    char tag[TAG_LEN + 1];
+    char note[40];
+    int i, n = 0;
+    for (i = 0; i < TAG_LEN && cur_set.p1_tag[i] != '\0'; i++) {
+        tag[i] = cur_set.p1_tag[i];
+    }
+    tag[i] = '\0';
+    for (i = 0; tag[i] != '\0' && i < 12; i++) {
+        note[n++] = tag[i];
+    }
+    memcpy(note + n, " IS P", 5);
+    n += 5;
+    note[n++] = (char) ('1' + port);
+    note[n] = '\0';
+    setAutoNote(note);
+}
+
 static void handleInputs(void)
 {
     int port;
     int cdir = CDIR_NONE; /* first non-centred C-stick among Z-held ports */
+
+    /* Port claim: L + R held a second by a human port names it entrant 1
+     * (with B as well: clears the claim). */
+    for (port = 0; port < 4; port++) {
+        const HSD_PadStatus* pad = &HSD_PadCopyStatus[port];
+        u32 lr = PAD_TRIGGER_L | PAD_TRIGGER_R;
+        if ((pad->button & lr) != lr) {
+            claim_hold[port] = 0;
+            continue;
+        }
+        if (claim_hold[port] < 255) {
+            claim_hold[port]++;
+        }
+        if (claim_hold[port] == LB_TOURNEY_CLAIM_HOLD_FRAMES &&
+            portIsHuman(port))
+        {
+            if (pad->button & PAD_BUTTON_B) {
+                claim_port = -1;
+                setAutoNote("PORTS CLEARED");
+            } else {
+                claim_port = (s8) port;
+                claimNote(port);
+            }
+            css_dirty = true;
+        }
+    }
 
     /* Any controller may drive the set: all four ports are read, and any port
      * holding Z counts. (In Dolphin only port 1 is emulated by default.) */
@@ -396,9 +484,9 @@ static void handleInputs(void)
     /* Score / undo fire once per flick: on the edge into a new direction. */
     if (cdir != prev_cdir) {
         if (cdir == CDIR_LEFT) {
-            appendGame(1, CHAR_UNKNOWN, CHAR_UNKNOWN, 0);
+            appendGame(leftEntrant(), CHAR_UNKNOWN, CHAR_UNKNOWN, 0);
         } else if (cdir == CDIR_RIGHT) {
-            appendGame(2, CHAR_UNKNOWN, CHAR_UNKNOWN, 0);
+            appendGame(3 - leftEntrant(), CHAR_UNKNOWN, CHAR_UNKNOWN, 0);
         } else if (cdir == CDIR_DOWN) {
             undoGame();
         }
@@ -448,6 +536,16 @@ static void pollRelay(void)
     }
     pending_cmd = 0;
     css_dirty = true;
+}
+
+/* Which entrant is shown on the left: the lower port once both ports are
+ * known (user, 2026-09-25), entrant 1 until then. The scoreboard and the
+ * C-stick binds (C-left = the left name) follow it. */
+static int leftEntrant(void)
+{
+    int a = entrantPort(1);
+    int b = entrantPort(2);
+    return (a >= 0 && b >= 0 && b < a) ? 2 : 1;
 }
 
 /* "P3" for the port playing as `entrant` (1 or 2), "" while unknown. */
@@ -513,8 +611,13 @@ static void autoScoreFromMatch(const struct MatchEnd* me)
         return;
     }
     assignEntrants(tags, 2, who);
+    /* A port claim (L + R) beats the tags when the claimed port played. */
+    if (claim_port >= 0 && (slots[0] == claim_port) != (slots[1] == claim_port)) {
+        who[0] = slots[0] == claim_port ? 1 : 2;
+        who[1] = slots[1] == claim_port ? 1 : 2;
+    }
     if (who[0] == 0 || who[1] == 0) {
-        setAutoNote("PICK A TAG TO AUTO-SCORE");
+        setAutoNote("PICK A TAG OR HOLD L+R TO AUTO-SCORE");
         return;
     }
     /* Per-game character and stage (R13): the standings' ckind is the CSS
@@ -758,8 +861,8 @@ static void redraw(void)
      * CRT). Right edge x 578 clears BACK's diagonal; y 8 puts the ink at
      * 25..38, under UCF's label and level with the MELEE logo. */
     {
-        const char* fmt =
-            handwarmer ? "HANDWARMER ON  #Z+#X CANCELS" : "#Z+#X HANDWARMER";
+        /* Short: the venue's UCF label ends at x 385 on this line. */
+        const char* fmt = handwarmer ? "#Z+#X CANCELS" : "#Z+#X WARMUP";
         ovLine(css_shadow, css_text, 578.0f - lbButton_Measure(0.50f, fmt),
                8.0f, 0.50f, handwarmer ? &ov_amb : &ov_white, fmt);
     }
@@ -783,22 +886,33 @@ static void redraw(void)
         bannerColor(&ov_red);
         bannerText("SEND FAILED - TELL THE TO");
         bannerPop();
+    } else if ((entrantPort(1) < 0 || entrantPort(2) < 0) &&
+               ((css_frames / 120) & 1) != 0)
+    {
+        /* Nobody is placed yet: every other two seconds the banner says how
+         * (a tag pick or the L + R hold by the player named first). */
+        bannerColor(&ov_amb);
+        bannerText("HOLD L+R IF YOU ARE ");
+        bannerName(p1);
+        bannerPop();
     } else {
         char num[16];
+        int le = leftEntrant();
+        int re = 3 - le;
         const GXColor* digits = pending_cmd != 0 ? &ov_amb
                                 : last_failed    ? &ov_red
                                 : sent_flash > 0 ? &ov_grn
                                                  : &ov_yel;
-        bannerName(p1);
-        bannerPort(entrantPort(1), false);
+        bannerName(le == 1 ? p1 : p2);
+        bannerPort(entrantPort(le), false);
         bannerText("   ");
-        sprintf(num, "%d - %d", winsFor(1), winsFor(2));
+        sprintf(num, "%d - %d", winsFor(le), winsFor(re));
         bannerColor(digits);
         bannerText(num);
         bannerPop();
         bannerText("   ");
-        bannerPort(entrantPort(2), true);
-        bannerName(p2);
+        bannerPort(entrantPort(re), true);
+        bannerName(re == 1 ? p1 : p2);
     }
     bannerEnd();
 
@@ -1003,9 +1117,18 @@ void lbTourney_CSSFrame(void)
             css_dirty = true;
         }
         css_frames++;
-        if (last_failed && css_frames % 120 == 0) {
+        if ((last_failed || entrantPort(1) < 0 || entrantPort(2) < 0) &&
+            css_frames % 120 == 0)
+        {
             css_dirty = true; /* the banner flips between score and message */
         }
+#if LB_TOURNEY_DEMO_CLAIM
+        if (css_frames == 150 && claim_port < 0) {
+            claim_port = 2;
+            claimNote(2);
+            css_dirty = true;
+        }
+#endif
         /* The port <-> nametag pairing changes as players pick tags. */
         {
             static int shown_p1_port = -2, shown_p2_port = -2;
