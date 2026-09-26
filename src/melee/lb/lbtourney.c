@@ -58,6 +58,7 @@ static s32 css_ctx = -1;
 static HSD_Text* css_text = NULL;
 static HSD_Text* css_shadow = NULL; /* drop shadows */
 static bool css_dirty;
+static u32 css_frames; /* CSS frames with a set: paces the SEND FAILED flip */
 
 /* Handwarmer flag (user, 2026-09-22): the next game is a warm-up that does
  * not count toward the score. Toggled on the CSS with Z + X (any port),
@@ -548,6 +549,11 @@ static const GXColor ov_dim = { 169, 188, 230, 255 };
 static const GXColor ov_grn = { 94, 224, 138, 255 };
 static const GXColor ov_red = { 255, 106, 92, 255 };
 static const GXColor ov_amb = { 255, 179, 71, 255 };
+static const GXColor ov_yel = { 255, 228, 92, 255 };
+/* The CSS's own P1..P4 hand colours, for the port labels in the banner. */
+static const GXColor ov_port[4] = {
+    { 255, 80, 80, 255 }, { 90, 140, 255, 255 }, { 255, 210, 70, 255 }, { 80, 220, 120, 255 }
+};
 #define OV_SHADOW_DX 2.0f
 
 static HSD_Text* newText(s32 ctx, u8 alpha)
@@ -610,18 +616,24 @@ static int sisOpLen(u8 op)
     }
 }
 
-static void writeBanner(const char* ascii)
+/* Banner content is built in segments so runs can be coloured with the SIS
+ * colour opcode (0C r g b ... 0D, hsd_3A76.c case 12/13): bannerBegin takes
+ * the slot over (once per CSS visit, keeping the vanilla leading opcodes),
+ * bannerText appends plain glyph codes (0x2000 + atlas index: the game's
+ * encoder was avoided because its fixed-width digit run crushes letters
+ * and isolates '-'), bannerEnd terminates and re-binds the banner text. */
+static u8* banner_cur;
+
+static void bannerBegin(void)
 {
     u8** table = (u8**) HSD_SisLib_804D1124[BANNER_FONT];
-    HSD_Text* t;
-    u8* dst;
-
+    banner_cur = NULL;
     if (table == NULL) {
         return;
     }
     if (table[BANNER_SLOT] != banner_buf) {
         const u8* p = table[BANNER_SLOT];
-        dst = banner_buf;
+        u8* dst = banner_buf;
         while (*p != 0 && *p < 0x20 && dst - banner_buf < 64) {
             int n = sisOpLen(*p);
             memcpy(dst, p, n);
@@ -632,22 +644,85 @@ static void writeBanner(const char* ascii)
         banner_orig = table[BANNER_SLOT];
         table[BANNER_SLOT] = banner_buf;
     }
-    /* Plain glyph codes, no opcodes: the text's own kerning (the banner has
-     * default_kerning = 1) spaces every glyph proportionally. The game's
-     * encoder (HSD_SisLib_803A67EC) was not used because it wraps digits and
-     * spaces in its fixed-width "0A F4" run and drops out of it for '-', so
-     * the dash of "0 - 0" sat in a full cell; and wrapping everything in
-     * that run crushes letters into 20-unit cells. */
-    dst = banner_buf + banner_prefix;
-    for (; *ascii != '\0' && dst < banner_buf + sizeof(banner_buf) - 3; ascii++) {
+    banner_cur = banner_buf + banner_prefix;
+}
+
+static bool bannerRoom(int n)
+{
+    return banner_cur != NULL &&
+           banner_cur + n < banner_buf + sizeof(banner_buf) - 1;
+}
+
+static void bannerText(const char* ascii)
+{
+    for (; *ascii != '\0' && bannerRoom(2); ascii++) {
         int g = lbButton_GlyphCode(*ascii);
         if (g >= 0) {
-            *dst++ = (u8) (g >> 8);
-            *dst++ = (u8) g;
+            *banner_cur++ = (u8) (g >> 8);
+            *banner_cur++ = (u8) g;
         }
     }
-    *dst = 0;
-    /* Re-bind the banner text(s) so the renderer reads our buffer afresh. */
+}
+
+static void bannerColor(const GXColor* c)
+{
+    if (bannerRoom(4)) {
+        *banner_cur++ = 0x0C;
+        *banner_cur++ = c->r;
+        *banner_cur++ = c->g;
+        *banner_cur++ = c->b;
+    }
+}
+
+static void bannerPop(void)
+{
+    if (bannerRoom(1)) {
+        *banner_cur++ = 0x0D;
+    }
+}
+
+/* A tag cut to 12 characters ('-' tail), so the vanilla shrink-to-fit never
+ * takes the digits down with two long names. */
+static void bannerName(const char* tag)
+{
+    char buf[13];
+    int i;
+    for (i = 0; i < 12 && tag[i] != '\0'; i++) {
+        buf[i] = tag[i];
+    }
+    if (i == 12 && tag[12] != '\0') {
+        buf[11] = '-';
+    }
+    buf[i] = '\0';
+    bannerText(buf);
+}
+
+/* " P3" after the left name / "P3 " before the right one, in the port's
+ * hand colour; nothing while the entrant's port is unknown. */
+static void bannerPort(int port, bool before_name)
+{
+    static const char* const labels[4] = { "P1", "P2", "P3", "P4" };
+    if (port < 0 || port > 3) {
+        return;
+    }
+    if (!before_name) {
+        bannerText(" ");
+    }
+    bannerColor(&ov_port[port]);
+    bannerText(labels[port]);
+    bannerPop();
+    if (before_name) {
+        bannerText(" ");
+    }
+}
+
+static void bannerEnd(void)
+{
+    HSD_Text* t;
+    if (banner_cur == NULL) {
+        return;
+    }
+    *banner_cur = 0;
     for (t = HSD_SisLib_804D7978; t != NULL; t = t->next) {
         if (t->font_idx == BANNER_FONT &&
             ((const u8*) t->sis_buffer == banner_orig ||
@@ -663,8 +738,6 @@ static void redraw(void)
     char p1[TAG_LEN + 1];
     char p2[TAG_LEN + 1];
     int entry;
-    const char* status;
-    const GXColor* status_ink;
 
     freeText(&css_text);
     freeText(&css_shadow);
@@ -680,55 +753,54 @@ static void redraw(void)
     css_text = newText(css_ctx, 255);
     (void) entry;
 
-    /* Handwarmer hint (bottom right) with button icons: the bind when off,
-     * the armed state when on. The user placed the plain "ZX FOR HANDWARMER"
-     * at el[EL_HINT].x; that text's right edge is kept as the anchor and the
-     * icon versions are right-aligned to it. */
+    /* Handwarmer hint, top-right above BACK: the one free strip inside the
+     * 5% safe area (the bottom edge, where it used to be, is overscan on a
+     * CRT). Right edge x 578 clears BACK's diagonal; y 8 puts the ink at
+     * 25..38, under UCF's label and level with the MELEE logo. */
     {
-        f32 s = el[EL_HINT].scale;
-        f32 right = el[EL_HINT].x + lbButton_Measure(s, "ZX FOR HANDWARMER");
         const char* fmt =
-            handwarmer ? "#Z+#X CANCELS HANDWARMER" : "#Z+#X FOR HANDWARMER";
-        ovLine(css_shadow, css_text, right - lbButton_Measure(s, fmt),
-               el[EL_HINT].y, s, &ov_white, fmt);
+            handwarmer ? "HANDWARMER ON  #Z+#X CANCELS" : "#Z+#X HANDWARMER";
+        ovLine(css_shadow, css_text, 578.0f - lbButton_Measure(0.50f, fmt),
+               8.0f, 0.50f, handwarmer ? &ov_amb : &ov_white, fmt);
     }
 
-    /* Score (top centre). Each name carries the port that picked its nametag
-     * (who is who). SIS y draws ~12 px lower than given; the screen is cut at
-     * ~470 in Dolphin, earlier on a CRT. */
-    /* Score: written into the CSS's own rules banner (writeBanner), where
-     * "4-man survival test!" used to be. Each name carries the port that
-     * picked its nametag (who is who). */
-    {
-        char line[96];
-        sprintf(line, "%s %s  %d - %d  %s %s", p1, portLabel(0), winsFor(1),
-                winsFor(2), portLabel(1), p2);
-        writeBanner(line);
-    }
-
-    /* Status (bottom left): in-flight, just-sent, or failed. (No "NEXT:
-     * GAME n" line: that belongs with automatic winner detection, design.md
-     * sec 12.) */
-    if (pending_cmd != 0) {
-        status = "SENDING...";
-        status_ink = &ov_dim;
-    } else if (last_failed) {
-        status = "SEND FAILED";
-        status_ink = &ov_red;
-    } else if (sent_flash > 0) {
-        status = "SCORE SENT";
-        status_ink = &ov_grn;
+    /* The CSS's own rules banner carries the score and the status: score
+     * "NAME P1   0 - 0   P3 NAME" (entrant 1 left, digits yellow, amber
+     * while a report is in flight, green just after one landed, red after a
+     * failure), or a timed message: the auto-score note, HANDWARMER - NOT
+     * SCORED while the flag is armed, and SEND FAILED - TELL THE TO
+     * alternating with the red score every two seconds. */
+    bannerBegin();
+    if (handwarmer) {
+        bannerColor(&ov_amb);
+        bannerText("HANDWARMER - NOT SCORED");
+        bannerPop();
     } else if (auto_note_frames > 0) {
-        status = auto_note; /* what auto-score did, or why it did not */
-        status_ink = &ov_amb;
+        bannerColor(&ov_amb);
+        bannerText(auto_note);
+        bannerPop();
+    } else if (last_failed && ((css_frames / 120) & 1) != 0) {
+        bannerColor(&ov_red);
+        bannerText("SEND FAILED - TELL THE TO");
+        bannerPop();
     } else {
-        status = NULL;
-        status_ink = &ov_white;
+        char num[16];
+        const GXColor* digits = pending_cmd != 0 ? &ov_amb
+                                : last_failed    ? &ov_red
+                                : sent_flash > 0 ? &ov_grn
+                                                 : &ov_yel;
+        bannerName(p1);
+        bannerPort(entrantPort(1), false);
+        bannerText("   ");
+        sprintf(num, "%d - %d", winsFor(1), winsFor(2));
+        bannerColor(digits);
+        bannerText(num);
+        bannerPop();
+        bannerText("   ");
+        bannerPort(entrantPort(2), true);
+        bannerName(p2);
     }
-    if (status != NULL) {
-        ovLine(css_shadow, css_text, el[EL_STATUS].x, el[EL_STATUS].y,
-               el[EL_STATUS].scale, status_ink, status);
-    }
+    bannerEnd();
 
 #if LB_TOURNEY_LAYOUT_TUNE
     /* Layout tune readout, mid-screen, while tuning. Scale shown x100. */
@@ -806,8 +878,8 @@ static void redrawMatch(void)
     freeText(&vs_shadow);
     vs_shadow = newText(vs_ctx, 190);
     vs_text = newText(vs_ctx, 255);
-    sprintf(line, "HANDWARMER  %d:%02d", sec / 60, sec % 60);
-    ovLine(vs_shadow, vs_text, 28.0f, 26.0f, 0.6f,
+    sprintf(line, "HANDWARMER %d:%02d", sec / 60, sec % 60);
+    ovLine(vs_shadow, vs_text, 34.0f, 24.0f, 0.6f,
            match_frames >= LB_TOURNEY_HANDWARMER_RED_FRAMES ? &red : &ov_white,
            line);
     vs_shown_sec = sec;
@@ -929,6 +1001,10 @@ void lbTourney_CSSFrame(void)
         }
         if (auto_note_frames > 0 && --auto_note_frames == 0) {
             css_dirty = true;
+        }
+        css_frames++;
+        if (last_failed && css_frames % 120 == 0) {
+            css_dirty = true; /* the banner flips between score and message */
         }
         /* The port <-> nametag pairing changes as players pick tags. */
         {

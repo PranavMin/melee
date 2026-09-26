@@ -90,7 +90,7 @@ enum mnTourney_State {
 #define L_WM_X 76.0f
 #define L_WM_Y 34.0f
 #define L_WM_S 1.0f
-#define L_HEAD_Y 88.0f /* filter pill + position */
+#define L_HEAD_Y 80.0f /* filter pill + position: 10 px above the panel rim */
 #define L_HEAD_S 0.55f
 #define L_LIST_X 58.0f /* scrim and cursor bar */
 #define L_LIST_W 326.0f
@@ -107,10 +107,13 @@ enum mnTourney_State {
 #define L_TAG_R_X 242.0f
 #define L_ROW_S 0.70f
 #define L_ROW_MIN_S 0.58f
-#define L_HDR_S 0.55f
+#define L_HDR_S 0.58f /* round headers: content, one step over the floor */
+#define L_VS_S 0.55f
+#define L_ACTION_S 0.70f /* the pane's primary action */
+#define L_PANE_TAG_S 0.80f /* hero tags in the pane */
 #define L_BAR_DY 6.0f /* cursor bar: slot y + 6, 28 tall (row ink is 11..29) */
 #define L_BAR_H 28.0f
-#define L_MORE_Y 362.0f /* inside the scrim, under the last slot */
+#define L_MORE_Y 358.0f /* inside the panel, 6 px above its bottom rim */
 /* The detail pane sits where the vanilla panel's preview box is (x 395..587);
  * at the frame we hold (10) the box outline itself is not drawn, so the
  * pane gets a scrim of its own, level with the list's. */
@@ -140,7 +143,8 @@ enum mnTourney_State {
 #endif
 /* Dev-loop only: with 1 the list auto-confirms and starts its first set two
  * seconds after it is up (there is no controller in the headless Dolphin
- * loop), so the CSS overlay can be captured. Never 1 in a shipped build. */
+ * loop), so the CSS overlay can be captured; with 2 it only opens the
+ * confirm pane. Never non-zero in a shipped build. */
 #ifndef TM_DEMO_AUTOSTART
 #define TM_DEMO_AUTOSTART 0
 #endif
@@ -163,8 +167,8 @@ static const GXColor c_scrim = { 18, 28, 72, 255 };  /* translucent navy */
 #endif
 static const GXColor c_rim = { 110, 150, 255, 255 };
 static const GXColor c_black = { 0, 0, 0, 255 };
-static const GXColor c_tint = { 70, 60, 10, 255 };    /* pane behind a confirm */
-static const GXColor c_bar = { 120, 170, 255, 255 };
+static const GXColor c_tint = { 48, 42, 18, 255 };    /* pane behind a confirm */
+static const GXColor c_bar = { 40, 62, 140, 255 }; /* renders far brighter than its alpha suggests; yellow on it must keep 3:1 luma */
 static const GXColor c_pill5 = { 90, 82, 184, 255 };  /* Z purple */
 static const GXColor c_pill3 = { 110, 112, 125, 255 };
 
@@ -318,9 +322,15 @@ static bool setMatchesFilter(const struct set_entry* set)
            upperFirst(set->p2_tag) == tm_filter;
 }
 
-static bool sameRound(const struct set_entry* a, const struct set_entry* b)
+/* Rows group by state first (the set this station is playing is floated to
+ * the top by the relay and gets a PLAYING HERE header, not a second copy of
+ * its round's header), then by round name. */
+static bool sameGroup(const struct set_entry* a, const struct set_entry* b)
 {
     int i;
+    if ((a->state != 0) != (b->state != 0)) {
+        return false;
+    }
     for (i = 0; i < ROUND_LEN; i++) {
         if (a->round[i] != b->round[i]) {
             return false;
@@ -346,7 +356,7 @@ static void buildView(void)
         }
         v = tm_nview++;
         tm_view[v] = (u8) i;
-        if (v == 0 || !sameRound(&tm_sets[tm_view[v - 1]], &tm_sets[i])) {
+        if (v == 0 || !sameGroup(&tm_sets[tm_view[v - 1]], &tm_sets[i])) {
             tm_slots[tm_nslots].is_header = 1;
             tm_slots[tm_nslots].view_idx = (u8) v;
             tm_nslots++;
@@ -572,15 +582,16 @@ static f32 pairScale(char* p1, char* p2, f32 w)
 /* str on up to two lines of width w at scale s0: one line if it fits, or
  * fits shrunk to s_one (so "WINNERS ROUND 1" does not orphan its "1");
  * else broken at the last space that fits, and a line that still overflows
- * (one long word) is shrunk. */
-static void wrap2(f32 x, f32 y, f32 dy, f32 s0, f32 s_one, f32 w,
-                  const GXColor* c, const char* str)
+ * (one long word) is shrunk. Returns the number of lines drawn. */
+static int wrap2(f32 x, f32 y, f32 dy, f32 s0, f32 s_one, f32 w,
+                 const GXColor* c, const char* str)
 {
     char a[MSG_LEN + 1];
     char b[MSG_LEN + 1];
     int n = (int) strlen(str);
     int cut = -1;
     int i, k;
+    int lines = 0;
 
     b[0] = '\0';
     if (width(s0, str) <= w) {
@@ -621,7 +632,9 @@ static void wrap2(f32 x, f32 y, f32 dy, f32 s0, f32 s_one, f32 w,
             }
         }
         lineC(x, y + k * dy, s, c, ln);
+        lines++;
     }
+    return lines;
 }
 
 /* A small disc in front of a label at text scale s (dot centred on the
@@ -655,22 +668,25 @@ static void drawRow(f32 y, const struct set_entry* set, bool selected,
     char p1[TAG_LEN + 1];
     char p2[TAG_LEN + 1];
     const GXColor* c;
+    const GXColor* vs;
     f32 s;
 
     copyStr(p1, set->p1_tag, TAG_LEN);
     copyStr(p2, set->p2_tag, TAG_LEN);
     s = pairScale(p1, p2, L_TAG_W);
     c = muted ? &c_muted : selected ? &c_yel : set->state != 0 ? &c_amb : &c_white;
+    vs = muted ? &c_muted : selected ? &c_white : &c_dim;
     if (selected) {
-        /* Inside the panel's rim on the rounded looks. */
+        /* Bar inside the panel's rim on the rounded looks; the yellow edge
+         * 7 px in, so it does not read as part of the rim. */
         f32 in = (TM_LOOK == 2 || TM_LOOK == 4) ? 3.0f : 0.0f;
         lbButton_Box(tm_bar, L_LIST_X + in, y + L_BAR_DY, L_LIST_W - 2 * in,
                      L_BAR_H, c_bar);
-        lbButton_Box(tm_text, L_LIST_X + in, y + L_BAR_DY, 4.0f, L_BAR_H,
+        lbButton_Box(tm_text, L_LIST_X + 7.0f, y + L_BAR_DY, 4.0f, L_BAR_H,
                      muted ? c_muted : c_yel);
     }
     rightAt(L_TAG_L_R, y, s, c, p1);
-    lineC(L_AXIS_X, y, L_HDR_S, muted ? &c_muted : &c_dim, "VS");
+    lineC(L_AXIS_X, y, L_VS_S, vs, "VS");
     lineC(L_TAG_R_X, y, s, c, p2);
 }
 
@@ -680,6 +696,7 @@ static void drawHeader(void)
     char buf[48];
     char* p;
     int k, last, first_row = 0, last_row = 0;
+    f32 right = L_TAG_R_X + L_TAG_W - 24.0f; /* 358: the cue fits inside */
 
     if (tm_filter == 0) {
         lineC(L_TEXT_X, L_HEAD_Y, L_HEAD_S, &c_dim, "#L ALL SETS #R");
@@ -707,15 +724,11 @@ static void drawHeader(void)
     p = putInt(buf, first_row);
     p = putStr(p, "-");
     p = putInt(p, last_row);
-    p = putStr(p, " / ");
-    p = putInt(p, tm_nview);
-    if (tm_filter != 0) {
-        p = putStr(p, " OF ");
-        p = putInt(p, tm_count);
-    }
-    rightAt(L_TAG_R_X + L_TAG_W - 12.0f, L_HEAD_Y, L_HEAD_S, &c_dim, buf);
+    p = putStr(p, " OF ");
+    putInt(p, tm_nview);
+    rightAt(right, L_HEAD_Y, L_HEAD_S, &c_dim, buf);
     if (tm_top > 0) {
-        lbButton_Shape(tm_text, L_TAG_R_X + L_TAG_W - 10.0f, L_HEAD_Y, L_HEAD_S,
+        lbButton_Shape(tm_text, right + 4.0f, L_HEAD_Y, L_HEAD_S,
                        LB_SHAPE_TRI_UP, c_dim2);
     }
 }
@@ -724,6 +737,7 @@ static void drawList(bool muted)
 {
     int k;
     int last = tm_top + L_SLOTS;
+    int shown = 0; /* rows through the last one drawn; MORE counts the rest */
     if (last > tm_nslots) {
         last = tm_nslots;
     }
@@ -732,21 +746,36 @@ static void drawList(bool muted)
         const struct tm_slot* sl = &tm_slots[k];
         const struct set_entry* set = &tm_sets[tm_view[sl->view_idx]];
         if (sl->is_header) {
-            char r[ROUND_LEN + 1];
-            copyStr(r, set->round, ROUND_LEN);
-            lineC(L_TEXT_X, y, L_HDR_S, muted ? &c_muted : &c_dim2, r);
+            /* A page never ends on a header: it comes with its rows. */
+            if (k == last - 1 && last < tm_nslots) {
+                break;
+            }
+            if (set->state != 0) {
+                dotLabel(L_TEXT_X, y, L_HDR_S, muted ? &c_muted : &c_amb,
+                         "PLAYING HERE");
+            } else {
+                char r[ROUND_LEN + 1];
+                f32 s;
+                copyStr(r, set->round, ROUND_LEN);
+                s = fitText(r, L_HDR_S, 0.50f, L_LIST_W - 24.0f);
+                lineC(L_TEXT_X, y, s, muted ? &c_muted : &c_dim, r);
+            }
         } else {
             drawRow(y, set, sl->view_idx == tm_sel, muted);
+            shown = sl->view_idx + 1;
         }
     }
     if (last < tm_nslots && !muted) {
-        f32 w = lbButton_ShapeAdvance(L_HINT_S, LB_SHAPE_TRI_DN) + 6.0f +
-                width(L_HINT_S, "MORE");
-        f32 x = L_LIST_CX - 0.5f * w;
+        char buf[16];
+        f32 w, x;
+        putStr(putInt(buf, tm_nview - shown), " MORE");
+        w = lbButton_ShapeAdvance(L_HINT_S, LB_SHAPE_TRI_DN) + 6.0f +
+            width(L_HINT_S, buf);
+        x = L_LIST_CX - 0.5f * w;
         x += lbButton_Shape(tm_text, x, L_MORE_Y, L_HINT_S, LB_SHAPE_TRI_DN,
-                            c_dim2) +
+                            c_dim) +
              6.0f;
-        lineC(x, L_MORE_Y, L_HINT_S, &c_dim2, "MORE");
+        lineC(x, L_MORE_Y, L_HINT_S, &c_dim, buf);
     }
 }
 
@@ -755,19 +784,20 @@ static void paneTag(f32 y, const char* tag, const GXColor* c)
     char buf[TAG_LEN + 1];
     f32 s;
     copyStr(buf, tag, TAG_LEN);
-    s = fitText(buf, L_ROW_S, L_ROW_MIN_S, L_PANE_W);
+    s = fitText(buf, L_PANE_TAG_S, L_ROW_MIN_S, L_PANE_W);
     lineC(L_PANE_X, y, s, c, buf);
 }
 
+/* BEST OF n as a real rounded pill (quarter-disc ends), Bo5 purple, Bo3 grey. */
 static void panePill(f32 y, int best_of)
 {
     char buf[16];
     f32 w;
     putInt(putStr(buf, "BEST OF "), best_of);
-    w = width(L_HINT_S, buf) + 12.0f;
-    lbButton_Box(tm_text, L_PANE_X, y + 13.0f, w, 20.0f,
-                 best_of == 5 ? c_pill5 : c_pill3);
-    lineC(L_PANE_X + 6.0f, y, L_HINT_S, &c_white, buf);
+    w = width(0.55f, buf) + 14.0f;
+    lbButton_Panel(tm_text, NULL, L_PANE_X, y + 13.0f, w, 22.0f, 6.0f,
+                   best_of == 5 ? c_pill5 : c_pill3, c_pill5);
+    lineC(L_PANE_X + 7.0f, y, 0.55f, &c_white, buf);
 }
 
 /* STATION n / RELAY / a.b.c.d from the poll header the host fills. */
@@ -794,10 +824,13 @@ static void paneWhereAmI(f32 y)
     lineC(L_PANE_X, y + 72.0f, 0.45f, &c_dim2, buf);
 }
 
+/* The pane in three groups: context (round, best-of), matchup (tag / VS /
+ * tag, hero size), action (state, then the biggest line: what A does). */
 static void drawPane(void)
 {
     const struct set_entry* set = NULL;
     char round[ROUND_LEN + 1];
+    int lines;
 
     switch (tm_state) {
     case TM_LIST:
@@ -808,29 +841,36 @@ static void drawPane(void)
         }
         set = &tm_sets[tm_view[tm_sel]];
         copyStr(round, set->round, ROUND_LEN);
-        wrap2(L_PANE_X, 126.0f, 24.0f, L_PANE_S, 0.40f, L_PANE_W, &c_dim, round);
-        paneTag(186.0f, set->p1_tag, &c_yel);
-        lineC(L_PANE_X, 214.0f, L_HINT_S, &c_dim, "VS");
-        paneTag(238.0f, set->p2_tag, &c_yel);
-        panePill(282.0f, set->best_of);
+        lines = wrap2(L_PANE_X, 120.0f, 22.0f, 0.55f, 0.45f, L_PANE_W, &c_dim,
+                      round);
+        panePill(lines > 1 ? 170.0f : 148.0f, set->best_of);
+        paneTag(212.0f, set->p1_tag, &c_yel);
+        lineC(L_PANE_X, 240.0f, L_HINT_S, &c_dim2, "VS");
+        paneTag(268.0f, set->p2_tag, &c_yel);
         if (set->state != 0) {
-            dotLabel(L_PANE_X, 312.0f, L_HINT_S, &c_amb, "PLAYING HERE");
+            dotLabel(L_PANE_X, 308.0f, L_HINT_S, &c_amb, "PLAYING HERE");
+            lineC(L_PANE_X, 340.0f, L_ACTION_S, &c_white, "#A RESUME");
         } else {
-            dotLabel(L_PANE_X, 312.0f, L_HINT_S, &c_grn, "READY");
+            dotLabel(L_PANE_X, 308.0f, L_HINT_S, &c_grn, "READY");
+            lineC(L_PANE_X, 340.0f, L_ACTION_S, &c_white, "#A START");
         }
-        lineC(L_PANE_X, 344.0f, L_HDR_S, &c_white, "#A START");
         break;
     case TM_CONFIRM:
     case TM_STARTING:
         set = &tm_sets[tm_chosen];
         paneBox(L_PANE_BOX_X, L_PANE_BOX_Y, L_PANE_BOX_W, L_PANE_BOX_H,
                 c_tint, false);
-        lineC(L_PANE_X, 126.0f, 0.62f, &c_yel, "START THIS");
-        lineC(L_PANE_X, 152.0f, 0.62f, &c_yel, "SET?");
-        paneTag(190.0f, set->p1_tag, &c_white);
-        lineC(L_PANE_X, 218.0f, L_HINT_S, &c_dim, "VS");
-        paneTag(242.0f, set->p2_tag, &c_white);
-        panePill(284.0f, set->best_of);
+        if (set->state != 0) {
+            lineC(L_PANE_X, 120.0f, 0.62f, &c_yel, "BACK TO");
+            lineC(L_PANE_X, 146.0f, 0.62f, &c_yel, "YOUR SET?");
+        } else {
+            lineC(L_PANE_X, 120.0f, 0.62f, &c_yel, "START THIS");
+            lineC(L_PANE_X, 146.0f, 0.62f, &c_yel, "SET?");
+        }
+        panePill(170.0f, set->best_of);
+        paneTag(212.0f, set->p1_tag, &c_white);
+        lineC(L_PANE_X, 240.0f, L_HINT_S, &c_dim2, "VS");
+        paneTag(268.0f, set->p2_tag, &c_white);
         if (tm_state == TM_CONFIRM) {
             lineC(L_PANE_X, 340.0f, L_HINT_S, &c_white, "#A YES   #B BACK");
         } else {
@@ -1255,7 +1295,7 @@ void mnTourney_Think(HSD_GObj* gobj)
         }
         break;
     case TM_CONFIRM:
-#if TM_DEMO_AUTOSTART
+#if TM_DEMO_AUTOSTART == 1
         if (tm_frame % 600 == 180) {
             buttons |= MenuInput_Confirm;
         }
