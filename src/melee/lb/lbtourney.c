@@ -82,9 +82,9 @@ static bool handwarmer;
 /* A trigger counts as held at its digital click OR from this raw analog
  * value (0-140 after the game's clamp, no deadzone subtraction: gmmain.c sets
  * clamp_analogLRMin 0 / Max 140): not every controller has a click, and a
- * light press must do (user, 2026-09-25 - "it is 49", the light-press
- * point). The friction is the two-trigger one-second hold, not the depth. */
-#define LB_TOURNEY_CLAIM_PULL_RAW 49
+ * light press must do (user, 2026-09-25; 49 did not register on their pad,
+ * 25 next). The friction is the two-trigger one-second hold, not the depth. */
+#define LB_TOURNEY_CLAIM_PULL_RAW 25
 static s8 claim_port = -1;   /* port that claimed entrant 1, or -1 */
 static u8 claim_hold[4];     /* frames each port has held L + R */
 #ifndef LB_TOURNEY_DEMO_CLAIM
