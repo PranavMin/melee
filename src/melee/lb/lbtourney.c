@@ -872,7 +872,7 @@ static void redraw(void)
      * top-right beside BACK before). */
     {
         const char* fmt = handwarmer ? "#Z+#X CANCELS" : "#Z+#X WARMUP";
-        ovLine(css_shadow, css_text, 0.0f, 0.0f, 0.50f,
+        ovLine(css_shadow, css_text, 0.0f, -4.0f, 0.50f,
                handwarmer ? &ov_amb : &ov_white, fmt);
     }
 #if LB_TOURNEY_TRIGGER_READOUT
