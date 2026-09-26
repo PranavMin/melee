@@ -86,7 +86,7 @@ static bool handwarmer;
  * the readout below showed). The friction is the two-trigger one-second hold, not the depth. */
 #define LB_TOURNEY_CLAIM_PULL_RAW 49
 #ifndef LB_TOURNEY_TRIGGER_READOUT
-#define LB_TOURNEY_TRIGGER_READOUT 1 /* dev: raw L/R per port, bottom-left */
+#define LB_TOURNEY_TRIGGER_READOUT 0 /* dev: raw L/R per port, bottom-left */
 #endif
 static s8 claim_port = -1;   /* port that claimed entrant 1, or -1 */
 static u8 claim_hold[4];     /* frames each port has held L + R */
@@ -868,15 +868,12 @@ static void redraw(void)
     css_text = newText(css_ctx, 255);
     (void) entry;
 
-    /* Handwarmer hint, top-right above BACK: the one free strip inside the
-     * 5% safe area (the bottom edge, where it used to be, is overscan on a
-     * CRT). Right edge x 578 clears BACK's diagonal; y 8 puts the ink at
-     * 25..38, under UCF's label and level with the MELEE logo. */
+    /* Handwarmer hint at the top-left corner (user, 2026-09-25; it sat
+     * top-right beside BACK before). */
     {
-        /* Short: the venue's UCF label ends at x 385 on this line. */
         const char* fmt = handwarmer ? "#Z+#X CANCELS" : "#Z+#X WARMUP";
-        ovLine(css_shadow, css_text, 578.0f - lbButton_Measure(0.50f, fmt),
-               8.0f, 0.50f, handwarmer ? &ov_amb : &ov_white, fmt);
+        ovLine(css_shadow, css_text, 0.0f, 0.0f, 0.50f,
+               handwarmer ? &ov_amb : &ov_white, fmt);
     }
 #if LB_TOURNEY_TRIGGER_READOUT
     {

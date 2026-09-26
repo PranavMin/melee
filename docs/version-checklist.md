@@ -237,8 +237,8 @@ same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutra
       button discs (A green, B red, X/Y light grey, Z purple square, L/R grey squares,
       Start grey pill, C-stick yellow), the confirm/error hints `(A) YES (B) BACK`, the
       filter line `(L) (R)`, and the CSS hint `(Z)+(X) WARMUP` / `(Z)+(X) CANCELS`
-      (top-right since 2026-09-25, right edge x 578, y 8, kept that short because the
-      venue's `UCF 0.84` label ends at x 385 on the same line). *Mechanism (module era): 4 shape glyphs in a module-owned SIS font slot
+      (top-left corner, x 0 y 0, since 2026-09-25 evening - it was top-right beside BACK
+      for a few hours; the short wording stays). *Mechanism (module era): 4 shape glyphs in a module-owned SIS font slot
       (index 4, `lbbuttonglyph_shapes.inc` from `tools/gen_button_glyphs.py`, glyph codes
       0x4000-0x4003, installed into `HSD_SisLib_804D1124[4]` whenever a kiosk text context is
       created; icons drawn at 1.25x the text scale since 2026-09-24); `lbbuttonglyph.c` draws an icon as a coloured shape entry with the
@@ -247,7 +247,7 @@ same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutra
       markers. `lbButton_Measure` gives exact widths, so the title and hint bars are now
       centred by measurement, not by eye. Things to eyeball: letter centred in its disc,
       icon baseline level with the text, the hint bar not clipped at either edge, and
-      the CSS hint top-right and clear of the venue's UCF label.*
+      the CSS hint in the top-left corner.*
 - [ ] **The score is in the CSS's own rules banner** (the chevron box under MELEE / VS that
       vanilla fills with "4-man survival test!"): `MANGO P1  0 - 0  P3 ZAIN`, centred, shrunk
       to fit if long; it updates on every score change and is back to vanilla text in
@@ -278,7 +278,7 @@ same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutra
       loop (its slots stay N/A, so the demo also treats port 1 as human) - must be 0 in a
       shipped build.*
 - [ ] **(superseded 2026-09-25: the score and status live in the banner and the hint is
-      top-right) CSS overlay layout (v31, tuned live by the user):** score `MANGO P1  0 - 0  P3
+      top-left) CSS overlay layout (v31, tuned live by the user):** score `MANGO P1  0 - 0  P3
       ZAIN` top centre (x 188, y -4, 0.62); hint `Z + X FOR HANDWARMER` (the `+` is the SJIS escape `{`, v34) bottom right
       (x 456, y 446, 0.43); status (`SENDING... / SCORE SENT / SEND FAILED`) bottom left (x 2,
       y 446, 0.45). (v32)
@@ -304,7 +304,7 @@ same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutra
       after `gm_80167FC4` has filled it from the rules, and the SSS skips itself on its
       first frame exactly as it does for a Random pick. A handwarmer on any other stage,
       or a stage select appearing, means that hook is missing. Not ready yet -> the press only arms/disarms the
-      flag (banner `HANDWARMER - NOT SCORED`, top-right hint `Z+X CANCELS`), and Start goes
+      flag (banner `HANDWARMER - NOT SCORED`, top-left hint `Z+X CANCELS`), and Start goes
       through the SSS as usual. In the game a `HANDWARMER m:ss` clock counts up **in the
       top-left corner** and **turns red past 1:00**, and **the HUD's own countdown is
       hidden** (v27, `ifTime_HideTimers()` re-asserted after every vanilla frame; the
