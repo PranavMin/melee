@@ -13,12 +13,14 @@
 #include <melee/gm/gmvs.h>
 #include <melee/gm/gmvsmelee.h>
 #include <melee/gm/types.h>
+#include <melee/gr/forward.h>
 #include <melee/if/iftime.h>
 #include <melee/lb/lbbuttonglyph.h>
 #include <melee/lb/lbrelayexi.h>
 #include <melee/mn/mntourney.h>
 #include <melee/mn/mncharsel.h>
 #include <melee/mn/mnname.h>
+#include <melee/mn/mnstagesel.h>
 #include <melee/mn/types.h>
 #include <melee/pl/forward.h>
 #include <sysdolphin/baselib/controller.h>
@@ -77,6 +79,12 @@ static bool handwarmer;
  * overrides the tags and lasts for the set. Once both ports are known the
  * scoreboard shows the lower port on the left. */
 #define LB_TOURNEY_CLAIM_HOLD_FRAMES 60
+/* A trigger counts as held at its digital click OR from this raw analog
+ * value (0-140 after the game's clamp, no deadzone subtraction: gmmain.c sets
+ * clamp_analogLRMin 0 / Max 140): not every controller has a click, and a
+ * light press must do (user, 2026-09-25 - "it is 49", the light-press
+ * point). The friction is the two-trigger one-second hold, not the depth. */
+#define LB_TOURNEY_CLAIM_PULL_RAW 49
 static s8 claim_port = -1;   /* port that claimed entrant 1, or -1 */
 static u8 claim_hold[4];     /* frames each port has held L + R */
 #ifndef LB_TOURNEY_DEMO_CLAIM
@@ -84,7 +92,7 @@ static u8 claim_hold[4];     /* frames each port has held L + R */
 #endif
 static void setAutoNote(const char* msg);
 static int leftEntrant(void);
-static bool stage_sel_forced; /* rules->stage_sel is Random for this start */
+static bool hw_battlefield;   /* the next stage-select enter forces Battlefield */
 
 /* Auto-score state (see autoScoreFromMatch below). */
 static int auto_pending;      /* entrant (1/2) who won the game just played */
@@ -411,11 +419,14 @@ static void handleInputs(void)
     int cdir = CDIR_NONE; /* first non-centred C-stick among Z-held ports */
 
     /* Port claim: L + R held a second by a human port names it entrant 1
-     * (with B as well: clears the claim). */
+     * (with B as well: clears the claim). Click or a deep pull, per trigger. */
     for (port = 0; port < 4; port++) {
         const HSD_PadStatus* pad = &HSD_PadCopyStatus[port];
-        u32 lr = PAD_TRIGGER_L | PAD_TRIGGER_R;
-        if ((pad->button & lr) != lr) {
+        bool l = (pad->button & PAD_TRIGGER_L) != 0 ||
+                 pad->analogL >= LB_TOURNEY_CLAIM_PULL_RAW;
+        bool r = (pad->button & PAD_TRIGGER_R) != 0 ||
+                 pad->analogR >= LB_TOURNEY_CLAIM_PULL_RAW;
+        if (!l || !r) {
             claim_hold[port] = 0;
             continue;
         }
@@ -445,17 +456,15 @@ static void handleInputs(void)
         }
         if (pad->trigger & PAD_BUTTON_X) {
             /* Z + X: straight into a handwarmer (user, 2026-09-22). When the
-             * CSS is ready the fight starts now on a random legal stage, no
-             * stage select: the game rules' stage_sel is flipped to Random
-             * for this one transition (the CSS-exit code then fills
-             * force_stage_id from mnSelStageRandom(), which draws from the
-             * kiosk's six, and the SSS skips itself on its first frame);
-             * lbTourney_MatchFrame puts it back. When the CSS is not ready
-             * (someone has not picked) the press just arms/disarms the flag. */
+             * CSS is ready the fight starts now on Battlefield (user,
+             * 2026-09-25; it was a random legal stage before), no stage
+             * select: lbTourney_SSSEnter writes force_stage_id before the
+             * vanilla stage-select enter runs, and the SSS skips itself on
+             * its first frame. When the CSS is not ready (someone has not
+             * picked) the press just arms/disarms the flag. */
             if (mnCharSel_TryStartFight()) {
                 handwarmer = true;
-                gmMainLib_GetGameRules()->stage_sel = 1; /* random */
-                stage_sel_forced = true;
+                hw_battlefield = true;
             } else {
                 handwarmer = !handwarmer;
             }
@@ -999,13 +1008,22 @@ static void redrawMatch(void)
     vs_shown_sec = sec;
 }
 
+/* GS_SSS on_enter (scene table hook). gm_80167FC4 has already filled
+ * force_stage_id from the rules (-1 = choose on the SSS); a Z + X start
+ * overrides it here so the SSS hands the match to Battlefield on its first
+ * frame, the same skip path it takes for a Random pick. */
+void lbTourney_SSSEnter(void* arg)
+{
+    if (hw_battlefield) {
+        ((SSSData*) arg)->force_stage_id = St_Kind_Battle;
+        hw_battlefield = false;
+    }
+    mnStageSel_Scene_OnEnter(arg);
+}
+
 void lbTourney_MatchFrame(void)
 {
-    if (stage_sel_forced) {
-        /* The CSS-exit code has consumed it; the next set-up chooses again. */
-        gmMainLib_GetGameRules()->stage_sel = 0; /* choose */
-        stage_sel_forced = false;
-    }
+    hw_battlefield = false; /* consumed by the SSS enter; never carry it over */
     if (has_set) {
         if (!match_seen) {
             match_seen = true;

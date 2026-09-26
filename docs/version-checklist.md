@@ -265,8 +265,9 @@ same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutra
       SIS pool is raised 9 -> 18 KB (`word 0x801A3F9C 0x38604800`), so a "Memory Empty"
       halt on the CSS means that hook.*
 - [ ] **Port claim (2026-09-25, user requirement - tags are optional):** on the CSS with a
-      set active, a human port holding **L + R for 1 s** becomes the player named first on
-      the set (banner `ALPHA IS P3` for 5 s); the other human port is the other player, so
+      set active, a human port holding **L + R for 1 s** (each trigger at its click OR
+      any analog press from the light-press point, raw 49 of 140 - not every controller
+      clicks) becomes the player named first on the set (banner `ALPHA IS P3` for 5 s); the other human port is the other player, so
       both port labels appear. **L + R + B** held 1 s clears it (`PORTS CLEARED`); the
       other controller holding L + R moves the claim (the undo). While nobody is placed
       the banner alternates every 2 s with `HOLD L+R IF YOU ARE <name>`. Once both ports
@@ -297,10 +298,12 @@ same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutra
       low in v35. Position two entries of different scale relative to each other with
       this rule, never by eye.
 - [ ] **Z + X on the CSS starts a handwarmer straight away** when every present player
-      is ready: no stage select, the game begins on a random legal stage (`stage_sel`
-      flipped to Random for that one transition so the CSS-exit code fills
-      `force_stage_id` from `mnSelStageRandom()` and the SSS skips itself; restored to
-      Choose on the first match frame). Not ready yet -> the press only arms/disarms the
+      is ready: no stage select, the game begins on **Battlefield** (user, 2026-09-25;
+      a random legal stage before): the module's GS_SSS on_enter wrapper
+      `lbTourney_SSSEnter` (hook `ptr 0x803DA9C8`) writes `force_stage_id = St_Kind_Battle`
+      after `gm_80167FC4` has filled it from the rules, and the SSS skips itself on its
+      first frame exactly as it does for a Random pick. A handwarmer on any other stage,
+      or a stage select appearing, means that hook is missing. Not ready yet -> the press only arms/disarms the
       flag (banner `HANDWARMER - NOT SCORED`, top-right hint `Z+X CANCELS`), and Start goes
       through the SSS as usual. In the game a `HANDWARMER m:ss` clock counts up **in the
       top-left corner** and **turns red past 1:00**, and **the HUD's own countdown is

@@ -56,7 +56,7 @@ in `Dolphin.ini`, needs `HLE_BS2 = True`).
 
 One line per patch: `ptr <addr> <symbol>` (write the module symbol's address), `branch <addr>
 <symbol>` (write `b symbol` over a vanilla function's first instruction), `word <addr> <hex>`.
-Today: scene-table rows (GS_MENU exit, GS_VS frame/exit, GS_CSS frame/exit), the main-menu
+Today: scene-table rows (GS_MENU exit, GS_VS frame/exit, GS_CSS frame/exit, GS_SSS enter), the main-menu
 think, the hijacked Trophies row (kind 3: think, description indices, selection count,
 anim/start_frame, panel-animation rows, light-colour jump-table entries), `bootOnLoad` and
 `mn_8022C010` branches. The builder decodes every Nintendont codeset in `kernel/gecko/` and

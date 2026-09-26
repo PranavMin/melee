@@ -33,6 +33,7 @@ bool lbTourney_HasCurrent(void);
  * and overlay, then the vanilla mnCharSel handler. */
 void lbTourney_CSSFrame(void);
 void lbTourney_CSSExit(void* arg);
+void lbTourney_SSSEnter(void* arg);
 
 /* GS_VS scene hooks (gmscdata rows): draw the handwarmer overlay during a
  * flagged game, then the vanilla gm_Scene_Vs handler. */

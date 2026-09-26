@@ -14,6 +14,7 @@ ptr    0x803DA94C lbTourney_MatchFrame      # GS_VS on_frame (vanilla gm_Scene_V
 ptr    0x803DA954 lbTourney_MatchExit       # GS_VS on_exit  (vanilla gm_Scene_Vs_OnExit)
 ptr    0x803DA9B0 lbTourney_CSSFrame        # GS_CSS on_frame (vanilla mnCharSel_Scene_OnFrame)
 ptr    0x803DA9B8 lbTourney_CSSExit         # GS_CSS on_exit  (vanilla mnCharSel_Scene_OnExit)
+ptr    0x803DA9C8 lbTourney_SSSEnter        # GS_SSS on_enter (vanilla mnStageSel_Scene_OnEnter): Z+X handwarmer -> Battlefield
 
 # mnmain.c menu-kind table mn_803EB6B0 (rows of 0x14: anim_loop, start_frame,
 # description_indices, selection_count, think).
