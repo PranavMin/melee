@@ -717,7 +717,6 @@ static void drawHeader(void)
     int k, last, first_row = 0, last_row = 0;
     f32 right = L_TAG_R_X + L_TAG_W - 24.0f; /* 358: the cue fits inside */
 
-    drawVersion();
 
     if (tm_filter == 0) {
         lineC(L_TEXT_X, L_HEAD_Y, L_HEAD_S, &c_dim, "#L ALL SETS #R");
@@ -946,8 +945,10 @@ static void redraw(void)
     paneBox(L_LIST_X, L_LIST_Y, L_LIST_W, L_LIST_H, c_scrim, true);
     paneBox(L_PANE_BOX_X, L_PANE_BOX_Y, L_PANE_BOX_W, L_PANE_BOX_H, c_scrim,
             true);
-    /* The TOURNAMENT title is the wordmark sprite (lbWordmark_Show), which
-     * lives across redraws. */
+    /* The LazyTO title is the wordmark sprite (lbWordmark_Show), which
+     * lives across redraws. The version text is drawn in every state, so a
+     * station that cannot reach the relay still says which build it runs. */
+    drawVersion();
 
     switch (tm_state) {
     case TM_SEARCHING:
