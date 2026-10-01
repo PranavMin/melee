@@ -79,7 +79,7 @@
 /* 1E2228 */ void grCorneria_801E2228(Ground_GObj*);
 /* 1E2454 */ HSD_Generator* grCorneria_801E2454(Vec3*, s32);
 /* 1E2480 */ HSD_Generator* grCorneria_801E2480(Vec3*, s32);
-/* 1E24AC */ void smashTaunt_801E24AC(Ground_GObj*, int);
+/* 1E24AC */ void smashTaunt_801E24AC(Ground_GObj*, intptr_t);
 /* 1E2550 */ void smashTaunt_801E2550(Ground_GObj*,
                                       struct grSmashTaunt_GroundVars*);
 /* 1E2598 */ s32 grCorneria_801E2598(u32, u32);
@@ -97,7 +97,7 @@ grCorneria_801E25C4(HSD_GObj*, struct grSmashTaunt_GroundVars*, int, int, int);
 /* 1E2D90 */ bool grCorneria_801E2D90(enum_t);
 /* 1E2E50 */ bool grCorneria_801E2E50(int);
 /* 1E2EA0 */ f32 grCorneria_801E2EA0(void);
-/* 1E2EE4 */ DynamicsDesc* grCorneria_801E2EE4(enum_t);
+/* 1E2EE4 */ lbColl_80008D30_arg1* grCorneria_801E2EE4(enum_t);
 /* 1E2EEC */ bool grCorneria_801E2EEC(Vec3*, int, HSD_JObj*);
 /* 1E2FCC */ f32 grCorneria_801E2FCC(void);
 /* 3E1F08 */ extern StageData grCn_StageData;

@@ -79,7 +79,8 @@ CFLAGS = [
     "-pragma", "warn_notinlined off", "-RTTI", "off", "-str", "reuse",
     "-DBUILD_VERSION=0", "-DVERSION_GALE01", "-maxerrors", "1", "-msgstyle",
     "std", "-warn", "off", "-requireprotos", "-i", "src", "-i", "src/MSL",
-    "-i", "include", "-i", "libs/dolphin/include", "-i", "build/GALE01/include",
+    "-i", "include", "-i", "libs/dolphin/include", "-i", "libs/doldecomp/include",
+    "-i", "build/GALE01/include",
     "-lang=c", "-O4,p", "-DNDEBUG=1", "-inline", "auto", "-sym", "off",
     "-sdata", "0", "-sdata2", "0", "-DTOURNAMENT_MODULE",
 ]

@@ -1,6 +1,5 @@
 #include "efasync.h"
 
-#include <math.h>
 #include <stdarg.h>
 
 #include "efdata.h"
@@ -68,6 +67,10 @@ static inline void efAsync_SetEffectFacingDir(EF_Effect* effect,
     HSD_JObjSetRotationY(GET_JOBJ(effect->gobj), rotation);
 }
 
+struct efAsync_Dispatch_state {
+    HSD_Generator* generator;
+};
+
 void* efAsync_Dispatch(s32 gfx_id, HSD_GObj* gobj, va_list vlist)
 {
     Vec3 translate;
@@ -89,9 +92,7 @@ void* efAsync_Dispatch(s32 gfx_id, HSD_GObj* gobj, va_list vlist)
     HSD_JObj* jobj_3;
     Vec3* va_vec3;
     s32 count;
-    struct {
-        HSD_Generator* generator;
-    } state;
+    struct efAsync_Dispatch_state state;
 
     ret_obj = NULL;
     switch (gfx_id) {
@@ -1272,14 +1273,13 @@ void efAsync_LoadAsync(int index)
 
 void efAsync_OnLoad(HSD_Archive* archive, u8* data, u32 length, int index)
 {
-    EF_DAT_Entry* result;
+    EffectDataTable* result;
 
     lbArchive_InitializeDAT(archive, data, length);
-    result = HSD_ArchiveGetPublicAddress(
-        archive, efAsync_DatEntries[index].effDataTable_name);
-    if ((u32) result->ef_DAT_file | (u32) result->effDataTable_name) {
-        psInitDataBankLocate((HSD_Archive*) result->ef_DAT_file,
-                             (HSD_Archive*) result->effDataTable_name, NULL);
+    result = HSD_ArchiveGetPublicAs(
+        EffectDataTable, archive, efAsync_DatEntries[index].effDataTable_name);
+    if ((u32) result->cmd_bank | (u32) result->tex_bank) {
+        psInitDataBankLocate(result->cmd_bank, result->tex_bank, NULL);
     }
 }
 
@@ -1373,36 +1373,36 @@ void efAsync_QueueProcessDeferred(HSD_GObj* gobj,
     HSD_ObjFree(&efAsync_AllocData, queued_effect);
 }
 
-void efAsync_QueueFlush(HSD_GObj* gobj, void* arg_struct)
+void efAsync_QueueFlush(HSD_GObj* gobj, EF_QueuedEffect** head)
 {
-    EF_QueuedEffect* temp_r31;
-    EF_QueuedEffect* var_r4;
+    EF_QueuedEffect* next;
+    EF_QueuedEffect* cur;
 
-    var_r4 = ((EF_QueuedEffect*) arg_struct)->next;
-    while (var_r4 != NULL) {
-        temp_r31 = var_r4->next;
-        efAsync_QueueProcessDeferred(gobj, var_r4);
-        var_r4 = temp_r31;
+    cur = *head;
+    while (cur != NULL) {
+        next = cur->next;
+        efAsync_QueueProcessDeferred(gobj, cur);
+        cur = next;
     }
-    ((EF_QueuedEffect*) arg_struct)->next = NULL;
+    *head = NULL;
 }
 
-void efAsync_QueueClear(void* arg_struct)
+void efAsync_QueueClear(EF_QueuedEffect** head)
 {
-    EF_QueuedEffect* temp_r30;
-    EF_QueuedEffect* var_r4;
+    EF_QueuedEffect* next;
+    EF_QueuedEffect* cur;
 
-    var_r4 = ((EF_QueuedEffect*) arg_struct)->next;
-    while (var_r4 != NULL) {
-        temp_r30 = var_r4->next;
-        HSD_ObjFree(&efAsync_AllocData, var_r4);
-        var_r4 = temp_r30;
+    cur = *head;
+    while (cur != NULL) {
+        next = cur->next;
+        HSD_ObjFree(&efAsync_AllocData, cur);
+        cur = next;
     }
-    ((EF_QueuedEffect*) arg_struct)->next = NULL;
+    *head = NULL;
 }
 
-void efAsync_Spawn(HSD_GObj* gobj, void* queue_head, u32 spawn_kind,
-                   u32 gfx_id, HSD_JObj* jobj, ...)
+void efAsync_Spawn(HSD_GObj* gobj, EF_QueuedEffect** queue_head,
+                   u32 spawn_kind, u32 gfx_id, HSD_JObj* jobj, ...)
 {
     va_list vlist;
     Vec3* va_vec3;
@@ -1457,8 +1457,8 @@ void efAsync_Spawn(HSD_GObj* gobj, void* queue_head, u32 spawn_kind,
     if ((HSD_GObj_CurrentInvokedProc != NULL) &&
         (HSD_GObj_CurrentInvokedProc->s_link < 9U))
     {
-        queued->next = ((EF_QueuedEffect*) queue_head)->next;
-        ((EF_QueuedEffect*) queue_head)->next = queued;
+        queued->next = *queue_head;
+        *queue_head = queued;
         return;
     }
     efAsync_QueueProcessDeferred(gobj, queued);

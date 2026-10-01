@@ -116,7 +116,7 @@
 /* 0A5CE0 */ static Fighter* ftCo_800A5CE0(Fighter* fp);
 /* 0A5F4C */ static Item* ftCo_800A5F4C(Fighter* fp, ItemKind);
 /* 0A61D8 */ static Item* ftCo_800A61D8(Fighter* fp);
-/* 0A648C */ static int ftCo_800A648C(Fighter* fp);
+/* 0A648C */ static Item* ftCo_800A648C(Fighter* fp);
 /* 0A6700 */ static bool ftCo_800A6700(Fighter* fp, Vec3*, Vec3*);
 /* 0A6A98 */ static s32 ftCo_800A6A98(Fighter* fp, Vec3* arg1);
 /* 0A6D2C */ static s32 ftCo_800A6D2C(Fighter* fp, Vec3* arg1);
@@ -236,7 +236,7 @@ static void sdata2_order(void)
  * for which items the CPU should prefer to target.
  * Higher numbers are preferred.
  */
-int ftCo_803C5A68[] = {
+int ftCo_803C5A68[It_Kind_Common_End] = {
     1, 0, 0, 1, 0, 0, 0, 1, 7, 6, 5, 4, 4, 3, 1, 1, 2, 1,
     5, 2, 2, 2, 3, 3, 3, 4, 0, 0, 8, 4, 1, 4, 4, 5, 5,
 };
@@ -703,7 +703,7 @@ void ftCo_800A101C(Fighter* arg0, int arg1, int arg2, int arg3)
     temp_r30->x40 = 50.0f;
     temp_r30->x44 = NULL;
     temp_r30->x48 = 0;
-    temp_r30->x50 = 0;
+    temp_r30->x50 = NULL;
     temp_r30->x98 = arg0->cur_pos;
     if (ftCo_800A0FB0(&sp50, &sp34, &sp30, &sp44, -1, -1, -1, arg0->cur_pos.x,
                       10.0f + arg0->cur_pos.y, arg0->cur_pos.x,
@@ -929,7 +929,7 @@ bool ftCo_800A1C44(Fighter* fp)
     if (fp->x2168 != 0 && fp->x2338.x == 0) {
         return true;
     }
-    if (fp->x221F_b3) {
+    if (fp->is_sleeping) {
         return true;
     }
     return false;
@@ -1074,7 +1074,7 @@ bool ftCo_800A1F98(int x, float y)
 
 bool ftCo_IsCpuControlled(Fighter* fp)
 {
-    if (Player_8003248C(fp->player_id, fp->is_sub_fighter) != Gm_PKind_Cpu) {
+    if (Player_8003248C(fp->player_idx, fp->is_sub_fighter) != Gm_PKind_Cpu) {
         return false;
     }
     if (fp->cpu.kind == 5) {
@@ -1264,10 +1264,30 @@ block_43:
     return 0;
 }
 
-#ifdef MUST_MATCH
-#pragma push
-#pragma dont_inline on
-#endif
+static inline bool checkOnettY(float y)
+{
+    if (stage_info.grkind != Gr_Kind_Onett) {
+        return false;
+    }
+    if (y <= 5.0 && Ground_801C5794()) {
+        return true;
+    }
+    return false;
+}
+
+static inline bool checkZebesIsland(mp_UnkStruct0* island)
+{
+    float y = island->x14.y;
+    if (ftCo_800A1F98(0x5A, y)) {
+        return true;
+    }
+    y = island->x8.y;
+    if (ftCo_800A1F98(0x5A, y)) {
+        return true;
+    }
+    return false;
+}
+
 bool ftCo_800A2718(mp_UnkStruct0* arg0)
 {
     /// @todo Redundant cast and assignment improves match
@@ -1306,41 +1326,10 @@ bool ftCo_800A2718(mp_UnkStruct0* arg0)
         switch (*stage) {
         case Gr_Kind_Story:
             return mpIsland_8005AC8C(island);
-        case Gr_Kind_Zebes: {
-            float y = island->x14.y;
-            if (ftCo_800A1F98(0x5A, y) != 0) {
-                return true;
-            }
-            y = island->x8.y;
-            if (ftCo_800A1F98(0x5A, y) != 0) {
-                return true;
-            }
-            return false;
-        }
+        case Gr_Kind_Zebes:
+            return checkZebesIsland(island);
         case Gr_Kind_Onett: {
-            bool ret;
-            bool ret2;
-            float y = island->x14.y;
-            if (*stage != Gr_Kind_Onett) {
-                ret = false;
-            } else if (y <= 5.0 && Ground_801C5794() != 0) {
-                ret = true;
-            } else {
-                ret = false;
-            }
-            if (ret) {
-                goto ret_true;
-            }
-            y = island->x8.y;
-            if (*stage != Gr_Kind_Onett) {
-                ret2 = false;
-            } else if (y <= 5.0 && Ground_801C5794() != 0) {
-                ret2 = true;
-            } else {
-                ret2 = false;
-            }
-            if (ret2) {
-            ret_true:
+            if (checkOnettY(island->x14.y) || checkOnettY(island->x8.y)) {
                 return true;
             }
             return false;
@@ -1350,21 +1339,11 @@ bool ftCo_800A2718(mp_UnkStruct0* arg0)
         }
     }
 }
-#ifdef MUST_MATCH
-#pragma pop
-#endif
 
-#ifdef MUST_MATCH
-#pragma push
-#pragma dont_inline on
-#endif
 static inline bool ftCo_800A2718_dontinline(mp_UnkStruct0* arg0)
 {
     return ftCo_800A2718(arg0);
 }
-#ifdef MUST_MATCH
-#pragma pop
-#endif
 
 static inline bool ftCo_800A2718_dontinline2(mp_UnkStruct0* arg0);
 static inline bool ftCo_800A2718_dontinline2(mp_UnkStruct0* arg0)
@@ -1922,7 +1901,7 @@ bool ftCo_IsAlly(Fighter* fp0, Fighter* fp1)
     if (fp1 == NULL) {
         return false;
     }
-    if (fp0->player_id == fp1->player_id) {
+    if (fp0->player_idx == fp1->player_idx) {
         return true;
     }
     if (gm_8016B168()) {
@@ -2412,8 +2391,8 @@ static inline bool inlineD0_it(Fighter* fp, Item* it)
 static inline bool inlineD1(Fighter* fp)
 {
     Fighter_GObj* gobj = fp->gobj;
-    if (fp->x221F_b3 || fp->x2224_b2 || ftCo_800A0F00(gobj) ||
-        ftLib_8008732C(gobj))
+    if (fp->is_sleeping || fp->stamina_dead || ftCo_800A0F00(gobj) ||
+        ftLib_IsDead(gobj))
     {
         return true;
     } else {
@@ -2637,7 +2616,7 @@ Fighter* ftCo_800A5294(Fighter* fp, int player_id)
             if (fp->gobj != cur) {
                 cur_fp = GET_FIGHTER(cur);
                 if (!inlineD0(fp, cur_fp)) {
-                    if (!inlineD1(cur_fp) && cur_fp->player_id == player_id) {
+                    if (!inlineD1(cur_fp) && cur_fp->player_idx == player_id) {
                         return cur_fp;
                     }
                 }
@@ -2772,8 +2751,8 @@ Fighter* ftCo_800A589C(Fighter* fp)
         {
             if (fp->gobj != cur) {
                 Fighter* cur_fp = GET_FIGHTER(cur);
-                if (fp->player_id == cur_fp->player_id) {
-                    if (cur_fp->x221F_b3) {
+                if (fp->player_idx == cur_fp->player_idx) {
+                    if (cur_fp->is_sleeping) {
                         return NULL;
                     }
                     return cur_fp;
@@ -3050,14 +3029,14 @@ Item* ftCo_800A5F4C(Fighter* fp, ItemKind arg1)
             continue;
         }
 
-        /// Passing It_Kind_L_Gun_Ray means to target any common item
-        if (arg1 != It_Kind_L_Gun_Ray && cur_ip->kind != arg1) {
+        /// Passing It_Kind_Common_End means to target any common item
+        if (arg1 != It_Kind_Common_End && cur_ip->kind != arg1) {
             continue;
         }
         if (inlineD0_it(fp, cur_ip)) {
             continue;
         }
-        if (cur_ip->kind >= It_Kind_L_Gun_Ray) {
+        if (cur_ip->kind >= It_Kind_Common_End) {
             continue;
         }
         if (ftCo_803C5A68[cur_ip->kind] < data->x2C) {
@@ -3115,7 +3094,7 @@ Item* ftCo_800A61D8(Fighter* fp)
         if (inlineD0_it(fp, ip)) {
             continue;
         }
-        if (ip->kind >= It_Common_End) {
+        if (ip->kind >= It_Kind_Common_End) {
             continue;
         }
         if (ftCo_803C5A68[ip->kind] < data->x2C) {
@@ -3139,7 +3118,7 @@ Item* ftCo_800A61D8(Fighter* fp)
 
 static inline bool ftCo_800A648C_inline1(Item* ip)
 {
-    if (ip->kind >= It_Kind_Kuriboh && ip->kind < It_Kind_Octarock_Stone) {
+    if (ip->kind >= It_Kind_Monster_Start && ip->kind < It_Kind_Monster_End) {
         return true;
     }
     if (ip->kind == It_Kind_Nokonoko ||
@@ -3161,7 +3140,7 @@ static inline HSD_GObj* ftCo_800A648C_inline3(HSD_GObj* cur)
     return cur->next;
 }
 
-int ftCo_800A648C(Fighter* fp)
+Item* ftCo_800A648C(Fighter* fp)
 {
     Item* ip;
     Item* closest;
@@ -3170,7 +3149,7 @@ int ftCo_800A648C(Fighter* fp)
     f32 dist;
 
     if (fp == NULL) {
-        return 0;
+        return NULL;
     }
     closest = NULL;
     for (cur = ftCo_800A648C_inline2(); cur != NULL;
@@ -3192,7 +3171,7 @@ int ftCo_800A648C(Fighter* fp)
             }
         }
     }
-    return (int) closest;
+    return closest;
 }
 
 static inline bool ftCo_800A6700_inline0(Fighter* fp, f32 x, f32 y)
@@ -4508,16 +4487,18 @@ static inline bool ftCo_IsNearlyZero(float x)
         }                                                                     \
     } while (0)
 
+struct ftCo_800A9904_ceiling {
+    u32 pad;
+    u32 flags;
+    int line_id;
+    Vec3 normal;
+    Vec3 pos;
+};
+
 void ftCo_800A9904(Fighter* fp)
 {
     UNUSED u8 _top[8];
-    struct {
-        u32 pad;
-        u32 flags;
-        int line_id;
-        Vec3 normal;
-        Vec3 pos;
-    } ceiling;
+    struct ftCo_800A9904_ceiling ceiling;
     f32 sqrt_time_store;
     f32 sqrt_terminal_store;
     UNUSED u8 _[0x1C];
@@ -5352,6 +5333,11 @@ static inline void ftCo_800ABBA8_blk155144r(Fighter* fp, Fighter** target)
     *target = data->x44;
 }
 
+struct ftCo_800ABBA8_sp50 {
+    Vec3 v;
+    u8 _[4];
+};
+
 void ftCo_800ABBA8(Fighter* fp)
 {
     struct CpuFighter* data = &fp->cpu;
@@ -5362,10 +5348,7 @@ void ftCo_800ABBA8(Fighter* fp)
     Vec3 sp68;
     int line_id;
     u32 flags;
-    struct {
-        Vec3 v;
-        u8 _[4];
-    } sp50;
+    struct ftCo_800ABBA8_sp50 sp50;
     u8 sqrt_gap[0xC];
     float sqrt_tmp[4];
     s32 result;
@@ -6185,7 +6168,7 @@ static bool ftCo_800ADE48(Fighter* fp)
             data->xF8_b5 = false;
         }
     }
-    if (!fp->x221B_b5) {
+    if (!fp->x221B.x221B_b5) {
         data->x94 = 0;
     }
     if (data->x18 != 0x12) {
@@ -6445,7 +6428,7 @@ static inline void ftCo_CpuUpdateCommonItemTarget(Fighter* fp)
         if (fp->x2168 != 0) {
             data->x4C = NULL;
         } else {
-            data->x4C = ftCo_800A5F4C(fp, It_Kind_L_Gun_Ray);
+            data->x4C = ftCo_800A5F4C(fp, It_Kind_Common_End);
         }
     }
 }
@@ -6827,7 +6810,7 @@ static inline void ftCo_CpuUpdateFoodItemTarget(Fighter* fp, bool* is_food)
     if (fp->x2168 != 0) {
         data->x4C = NULL;
     } else {
-        data->x4C = ftCo_800A5F4C(fp, It_Kind_L_Gun_Ray);
+        data->x4C = ftCo_800A5F4C(fp, It_Kind_Common_End);
     }
 }
 
@@ -8626,7 +8609,7 @@ bool ftCo_800B395C(Fighter_GObj* gobj, int arg1)
 
     fp = GET_FIGHTER(gobj);
     temp_r30 = &fp->cpu;
-    if (Player_8003248C(fp->player_id, fp->is_sub_fighter) == Gm_PKind_Cpu) {
+    if (Player_8003248C(fp->player_idx, fp->is_sub_fighter) == Gm_PKind_Cpu) {
         switch (temp_r30->x18) {
         case 2:
         case 3:

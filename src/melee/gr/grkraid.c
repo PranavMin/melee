@@ -555,7 +555,7 @@ bool grKraid_801FF0E0(Ground_GObj* gobj, int flag)
     }
     comp = gp->u.kraid2.xC >= val ? true : false;
     if (comp != false) {
-        ftLib_80086C9C(0xC, 0x0);
+        ftLib_StartRumbleAll(0xC, 0x0);
     }
     return comp;
 }
@@ -567,7 +567,7 @@ void grKraid_801FF14C(Ground_GObj* gobj)
 
 void grKraid_801FF150(Ground_GObj* gobj) {}
 
-DynamicsDesc* grKraid_OnTouchLine(enum_t unused)
+lbColl_80008D30_arg1* grKraid_OnTouchLine(enum_t unused)
 {
     return NULL;
 }

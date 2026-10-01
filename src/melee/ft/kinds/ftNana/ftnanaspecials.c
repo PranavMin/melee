@@ -2,8 +2,6 @@
 
 #include <melee/ft/forward.h>
 
-#include <math.h>
-
 #include "ftnana.h"
 #include <dolphin/mtx.h>
 #include <melee/ft/fighter.h>
@@ -47,9 +45,9 @@ bool ftNn_Init_80123954(Fighter_GObj* nana_gobj, GroundOrAir pp_ga)
         Fighter* popo_fp;
         ftIceClimberAttributes* attrs;
         nana_fp = GET_FIGHTER(nana_gobj);
-        popo_fp = GET_FIGHTER(Player_GetEntityAtIndex(nana_fp->player_id, 0));
+        popo_fp = GET_FIGHTER(Player_GetEntityAtIndex(nana_fp->player_idx, 0));
         attrs = nana_fp->dat_attrs;
-        switch (nana_fp->x2070.x2071_b0_3) {
+        switch (nana_fp->x2070.x0.x2071_b0_3) {
         case 1:
         case 2:
         case 3:
@@ -93,7 +91,7 @@ bool ftNn_Init_80123954(Fighter_GObj* nana_gobj, GroundOrAir pp_ga)
                 nana_fp->facing_dir = popo_fp->facing_dir;
                 ftPartSetRotY(nana_fp, 0, M_PI_2 * nana_fp->facing_dir);
                 nana_fp->x1A5C =
-                    Player_GetEntityAtIndex(nana_fp->player_id, 0);
+                    Player_GetEntityAtIndex(nana_fp->player_idx, 0);
             } else {
                 nana_fp->x1A5C = NULL;
                 ret = true;
@@ -133,7 +131,7 @@ void ftNn_Init_80123B3C(Fighter_GObj* gobj)
     PAD_STACK(8);
     Fighter_ClearCmdVars(fp);
     ftNn_Init_80123B3C_inline(gobj);
-    Fighter_ChangeMotionState(gobj, 359, 0, 0.0f, 1.0f, 0.0f, NULL);
+    Fighter_ChangeMotionState(gobj, 359, Ft_MF_None, 0.0f, 1.0f, 0.0f, NULL);
     ftNn_Init_80123B3C_inline(gobj);
     ftAnim_8006EBA4(gobj);
     fp->x74_self_accel.y = 0.0f;
@@ -146,7 +144,7 @@ void ftNn_Init_80123BF0(Fighter_GObj* gobj)
     PAD_STACK(8);
     Fighter_ClearCmdVars(fp);
     ftNn_Init_80123B3C_inline(gobj);
-    Fighter_ChangeMotionState(gobj, 360, 0, 0.0f, 1.0f, 0.0f, NULL);
+    Fighter_ChangeMotionState(gobj, 360, Ft_MF_None, 0.0f, 1.0f, 0.0f, NULL);
     ftNn_Init_80123B3C_inline(gobj);
     ftAnim_8006EBA4(gobj);
     fp->x74_self_accel.y = 0.0f;
@@ -166,7 +164,7 @@ static inline void ftPp_SpecialS_0_Anim_inline(Fighter_GObj* nana_gobj)
 void ftPp_SpecialS_0_Anim(Fighter_GObj* nana_gobj)
 {
     Fighter* nana_fp = GET_FIGHTER(nana_gobj);
-    Fighter_GObj* popo_gobj = Player_GetEntityAtIndex(nana_fp->player_id, 0);
+    Fighter_GObj* popo_gobj = Player_GetEntityAtIndex(nana_fp->player_idx, 0);
     Fighter* popo_fp = GET_FIGHTER(popo_gobj);
     if (!ftPp_SpecialS_8011F964(popo_gobj)) {
         nana_fp->cur_anim_frame = popo_fp->cur_anim_frame;
@@ -181,7 +179,7 @@ void ftPp_SpecialS_1_Anim(Fighter_GObj* nana_gobj)
 {
     Fighter* nana_fp = GET_FIGHTER(nana_gobj);
     ftIceClimberAttributes* attrs = nana_fp->dat_attrs;
-    Fighter_GObj* popo_gobj = Player_GetEntityAtIndex(nana_fp->player_id, 0);
+    Fighter_GObj* popo_gobj = Player_GetEntityAtIndex(nana_fp->player_idx, 0);
     Fighter* popo_fp = GET_FIGHTER(popo_gobj);
     PAD_STACK(8);
     if (!ftPp_SpecialS_8011F964(popo_gobj)) {
@@ -212,7 +210,7 @@ void ftPp_SpecialS_0_Phys(Fighter_GObj* nana_gobj)
 {
     Fighter* nana_fp = GET_FIGHTER(nana_gobj);
     Fighter* popo_fp =
-        GET_FIGHTER(Player_GetEntityAtIndex(nana_fp->player_id, 0));
+        GET_FIGHTER(Player_GetEntityAtIndex(nana_fp->player_idx, 0));
     PAD_STACK(8);
     nana_fp->self_vel = popo_fp->self_vel;
     nana_fp->x74_self_accel = popo_fp->x74_self_accel;
@@ -226,7 +224,7 @@ void ftPp_SpecialS_1_Phys(Fighter_GObj* nana_gobj)
 {
     Fighter* nana_fp = GET_FIGHTER(nana_gobj);
     Fighter* popo_fp =
-        GET_FIGHTER(Player_GetEntityAtIndex(nana_fp->player_id, 0));
+        GET_FIGHTER(Player_GetEntityAtIndex(nana_fp->player_idx, 0));
     PAD_STACK(8);
     nana_fp->self_vel = popo_fp->self_vel;
     nana_fp->x74_self_accel = popo_fp->x74_self_accel;
@@ -239,7 +237,7 @@ void ftPp_SpecialS_1_Phys(Fighter_GObj* nana_gobj)
 static inline void ftPp_SpecialS_0_Coll_inline(Fighter_GObj* nana_gobj)
 {
     Fighter* nana_fp = GET_FIGHTER(nana_gobj);
-    Fighter_GObj* popo_gobj = Player_GetEntityAtIndex(nana_fp->player_id, 0);
+    Fighter_GObj* popo_gobj = Player_GetEntityAtIndex(nana_fp->player_idx, 0);
     Fighter* popo_fp = GET_FIGHTER(popo_gobj);
 
     ftPartSetRotX(nana_fp, 0, ftPartGetRotX(popo_fp, 0));
@@ -301,7 +299,7 @@ static inline void ftPp_SpecialS_0_Coll_inline4(Fighter_GObj* nana_gobj,
 void ftPp_SpecialS_0_Coll(Fighter_GObj* nana_gobj)
 {
     Fighter* nana_fp = GET_FIGHTER(nana_gobj);
-    Fighter_GObj* popo_gobj = Player_GetEntityAtIndex(nana_fp->player_id, 0);
+    Fighter_GObj* popo_gobj = Player_GetEntityAtIndex(nana_fp->player_idx, 0);
     Fighter* popo_fp = GET_FIGHTER(popo_gobj);
     ftPp_SpecialS_0_Coll_inline4(nana_gobj, popo_fp, nana_fp, popo_gobj);
     ftPp_SpecialS_0_Coll_inline(nana_gobj);
@@ -357,7 +355,7 @@ static inline void ftPp_SpecialS_1_Coll_inline4(Fighter_GObj* nana_gobj,
 void ftPp_SpecialS_1_Coll(Fighter_GObj* nana_gobj)
 {
     Fighter* nana_fp = GET_FIGHTER(nana_gobj);
-    Fighter_GObj* popo_gobj = Player_GetEntityAtIndex(nana_fp->player_id, 0);
+    Fighter_GObj* popo_gobj = Player_GetEntityAtIndex(nana_fp->player_idx, 0);
     Fighter* popo_fp = GET_FIGHTER(popo_gobj);
     ftPp_SpecialS_1_Coll_inline4(nana_gobj, popo_fp, nana_fp, popo_gobj);
     ftPp_SpecialS_0_Coll_inline(nana_gobj);

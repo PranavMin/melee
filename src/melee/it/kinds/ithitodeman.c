@@ -56,7 +56,7 @@ void it_2725_Logic24_Spawned(Item_GObj* gobj)
     PAD_STACK(16);
 
     ip->facing_dir = 0.0f;
-    ip->xDBC_itcmd_var4.flags.x0 = false;
+    ip->xDBC.xDBC_itcmd_var4.flags.x0 = false;
 
     it_80279CDC(gobj, attrs->x0);
     it_802D43EC(gobj);
@@ -97,7 +97,7 @@ void it_802D43EC(Item_GObj* gobj)
     f32 randf;
     f32 diff;
 
-    owner_gobj = ftLib_80086198(ip->owner);
+    owner_gobj = ftLib_FindLowestPercentOpponent(ip->owner);
     if (owner_gobj != NULL) {
         ip->xDD4_itemVar.hitodeman.x90 = owner_gobj;
     } else {
@@ -159,7 +159,7 @@ bool it_802D4564(Item_GObj* gobj)
             HSD_JObj* jobj = gobj->hsd_obj;
             Vec3 target_pos;
             PAD_STACK(8);
-            ftLib_80086644(ip->xDD4_itemVar.hitodeman.x90, &target_pos);
+            ftLib_GetPos(ip->xDD4_itemVar.hitodeman.x90, &target_pos);
             if (target_pos.x < ip->pos.x) {
                 ip->facing_dir = -1.0f;
             } else {
@@ -194,7 +194,7 @@ void it_802D472C(Item_GObj* gobj)
     f32 dist;
 
     if (ip->xDD4_itemVar.hitodeman.x90 != NULL) {
-        ftLib_80086644(ip->xDD4_itemVar.hitodeman.x90, &target_pos);
+        ftLib_GetPos(ip->xDD4_itemVar.hitodeman.x90, &target_pos);
         target_pos.x += ip->xDD4_itemVar.hitodeman.x60;
         target_pos.y += ip->xDD4_itemVar.hitodeman.x64;
         target_pos.z = 0.0f;
@@ -367,7 +367,7 @@ void it_802D4C74(Item_GObj* gobj)
     spawn.kind = It_Kind_Hitodeman_Star;
     spawn.x0_parent_gobj = ip->owner;
     spawn.x4_parent_gobj2 = gobj;
-    spawn.x44_flag.b0 = false;
+    spawn.x44_flag.x0.b0 = false;
     spawn.x40 = 0;
     item_gobj = Item_80268B18(&spawn);
     if (item_gobj != NULL) {

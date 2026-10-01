@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include <sysdolphin/baselib/sislib.h>
+#include <sysdolphin/baselib/sislib_font.h>
 
 /* How sislib lays glyphs out with kerning on (hsd_3A76.c, our overlays use
  * default_kerning = 1): every glyph is a 32-unit cell scaled by s; the
@@ -35,7 +36,15 @@ static const u8 shape_kern[SH_COUNT][2] = {
     { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, /* QD_TL QD_TR QD_BL QD_BR */
     { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, /* QR_TL QR_TR QR_BL QR_BR */
 };
-static const SIS tm_font = { (TextKerning*) shape_tex, (TextGlyphTexture*) shape_kern };
+/* The vanilla font table entry (sislib.h's old `SIS`: kerning pointer, then
+ * glyph textures; upstream dropped the typedef and types the table as
+ * u8**). Same byte layout as the game's four fonts; the game reads it through
+ * font_idx 4 = TM_FONT. */
+struct tm_sis_font {
+    const void* kerning;  /* the game indexes this by glyph: our 2-byte margins */
+    const void* textures; /* 512-byte I4 glyph tiles */
+};
+static const struct tm_sis_font tm_font = { shape_tex, shape_kern };
 
 int lbButton_Font(void)
 {
@@ -44,7 +53,7 @@ int lbButton_Font(void)
 
 void lbButton_InstallFont(void)
 {
-    HSD_SisLib_804D1124[TM_FONT] = (SIS*) &tm_font;
+    HSD_SisLib_804D1124[TM_FONT] = (u8**) &tm_font;
 }
 
 /* Icons are drawn a bit larger than the text they sit in (user, 2026-09-24)
@@ -163,12 +172,12 @@ int lbButton_GlyphCode(char c)
 
 static f32 kernLeft(int g)
 {
-    return (f32) HSD_SisLib_8040CB00[2 * g];
+    return (f32) HSD_SisLib_8040CB00[g].left;
 }
 
 static f32 kernRight(int g)
 {
-    return (f32) HSD_SisLib_8040CB00[2 * g + 1];
+    return (f32) HSD_SisLib_8040CB00[g].right;
 }
 
 static f32 advance(int g, f32 s)

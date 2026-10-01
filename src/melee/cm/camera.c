@@ -48,7 +48,7 @@
 /* 029AAC */ static void Camera_80029AAC(CameraBounds* bounds,
                                          CameraTransformState* transform,
                                          f32 speed);
-/* 0301D0 */ static void fn_800301D0(HSD_GObj*, int);
+/* 0301D0 */ static void fn_800301D0(HSD_GObj*, intptr_t);
 
 /// The main camera used in game scenes.
 /* 452C68 */ static Camera game_camera;
@@ -743,10 +743,6 @@ void Camera_80029AAC(CameraBounds* bounds, CameraTransformState* transform,
     transform->interest.y += offset_y * lerp_factor;
 }
 
-#ifdef MUST_MATCH
-#pragma push
-#pragma dont_inline on
-#endif
 void Camera_80029BC4(CameraBounds* bounds, CameraTransformState* transform)
 {
     float cam_dist = (bounds->y_max - bounds->y_min) /
@@ -786,9 +782,6 @@ void Camera_80029C88(CameraBounds* unused, CameraTransformState* transform,
     transform->position.y += dist.y * scale;
     transform->position.z += dist.z * scale;
 }
-#ifdef MUST_MATCH
-#pragma pop
-#endif
 
 static inline f32 get_y_bias(f32 spread)
 {
@@ -908,6 +901,13 @@ void Camera_80029CF8(CameraBounds* bounds, CameraTransformState* transform)
     transform->target_position.z = transform->target_interest.z + cam_dist;
 }
 
+struct CameraStaticData {
+    CameraModeCallbacks callbacks;
+    HSD_WObjDesc interest;
+    HSD_WObjDesc eyepos;
+    HSD_CameraDescPerspective desc;
+};
+
 void Camera_ApplyQuake(CameraBounds* bounds, CameraTransformState* state)
 {
     f32 viewport_x_scale;
@@ -918,12 +918,7 @@ void Camera_ApplyQuake(CameraBounds* bounds, CameraTransformState* state)
     f32 input_x;
     f32 input_y;
     f32 depth_ratio;
-    struct CameraStaticData {
-        CameraModeCallbacks callbacks;
-        HSD_WObjDesc interest;
-        HSD_WObjDesc eyepos;
-        HSD_CameraDescPerspective desc;
-    }* data = (struct CameraStaticData*) &cm_803BCB18;
+    struct CameraStaticData* data = (struct CameraStaticData*) &cm_803BCB18;
 
     input_x = game_camera.quake_offset.x * game_camera.quake_scale;
     input_y = game_camera.quake_offset.y * game_camera.quake_scale;
@@ -1390,13 +1385,9 @@ void Camera_8002B0E0(void)
 {
     f32 var_f1;
     f32 var_f2;
-    PAD_STACK(8);
 
     if ((gm_IsCurrently1PMode_inline() != 0) && (game_camera.x2C0 > 0.0f)) {
-        {
-            s32 idx = Player_GetPlayerId(0) & 0xFF;
-            var_f1 = HSD_PadCopyStatus[idx].nml_subStickY;
-        }
+        var_f1 = HSD_PadGetNmlSubStickY(Player_GetPadPort(0));
         var_f2 = var_f1;
         if (var_f2 < 0.0f) {
             var_f1 = -var_f1;
@@ -1438,13 +1429,14 @@ void Camera_8002B1F8(CameraTransformState* transform)
         return;
     }
     if ((((temp_r3 = Player_GetEntity(0), temp_r3 != NULL) &&
-          (subject = ftLib_80086B74(temp_r3), subject != NULL) &&
+          (subject = ftLib_GetCameraSubject(temp_r3), subject != NULL) &&
           (Camera_8002928C(subject) != 0) &&
           (Camera_80029124(&subject->bone_pos, 0) == CAM_BOUNDS_INSIDE) &&
-          !ftLib_8008732C(temp_r3)) ||
+          !ftLib_IsDead(temp_r3)) ||
          ((Player_GetPlayerCharacter(1) == ChKind_Sandbag) &&
           (temp_r3_2 = Player_GetEntity(1), ((temp_r3_2 == NULL) == 0)) &&
-          (subject = ftLib_80086B74(temp_r3_2), ((subject == NULL) == 0)) &&
+          (subject = ftLib_GetCameraSubject(temp_r3_2),
+           ((subject == NULL) == 0)) &&
           (Camera_8002928C(subject) != 0) &&
           (Camera_80029124(&subject->bone_pos, 0) == CAM_BOUNDS_INSIDE))))
     {
@@ -1475,7 +1467,7 @@ static inline bool fighter_z_out_of_range(Vec3* fighter_pos)
     if (Camera_80030AF8()) {
         gobj = Ground_GetP1Fighter();
         if (gobj != NULL) {
-            ftLib_80086644(gobj, fighter_pos);
+            ftLib_GetPos(gobj, fighter_pos);
             if (ABS(fighter_pos->z) > 30.0f) {
                 return true;
             }
@@ -1586,6 +1578,16 @@ static inline f32 get_stick_y(HSD_PadStatus* arg0)
     return arg0->nml_stickY;
 }
 
+static inline f32 get_substick_x(HSD_PadStatus* arg0)
+{
+    return arg0->nml_subStickX;
+}
+
+static inline f32 get_substick_y(HSD_PadStatus* arg0)
+{
+    return arg0->nml_subStickY;
+}
+
 void Camera_8002B694(CameraInputs* inputs, s32 slot)
 {
     HSD_PadStatus* pad;
@@ -1599,7 +1601,6 @@ void Camera_8002B694(CameraInputs* inputs, s32 slot)
     s32 i;
     s32 idx;
     u64 temp_ret;
-    PAD_STACK(16);
 
     if (slot == 5) {
         inputs->stick_x = 0.0f;
@@ -1611,12 +1612,8 @@ void Camera_8002B694(CameraInputs* inputs, s32 slot)
         return;
     }
 
-    /// @todo some notes on this weird thing: Slot 4 reads all ports at once:
-    /// the stick and substick each
-    // come from the first controller deflected past 0.85 on either axis (zero
-    // if none), and the buttons are merged across all controllers.
-    // there is probably an inline for the stick comparisons that would fix the
-    // PAD_STACK
+    // Slot 4 takes each stick from the first port deflected past 0.85 and
+    // merges the buttons of every port.
     if (slot == 4) {
         for (current_slot = 0; current_slot < PAD_MAX_CONTROLLERS;
              current_slot++)
@@ -1648,8 +1645,8 @@ void Camera_8002B694(CameraInputs* inputs, s32 slot)
         idx = 0;
         for (i = 0; i < PAD_MAX_CONTROLLERS; i++, idx = (u8) i) {
             pad = &HSD_PadCopyStatus[idx];
-            temp_x = pad->nml_subStickX;
-            temp_y = pad->nml_subStickY;
+            temp_x = get_substick_x(pad);
+            temp_y = get_substick_y(pad);
             substick_x = temp_x;
             substick_y = temp_y;
             if (temp_x < 0.0f) {
@@ -1683,10 +1680,10 @@ void Camera_8002B694(CameraInputs* inputs, s32 slot)
     }
 
     pad = get_slot_pad(slot);
-    inputs->stick_x = pad->nml_stickX;
-    inputs->stick_y = pad->nml_stickY;
-    inputs->substick_x = pad->nml_subStickX;
-    inputs->substick_y = pad->nml_subStickY;
+    inputs->stick_x = get_stick_x(pad);
+    inputs->stick_y = get_stick_y(pad);
+    inputs->substick_x = get_substick_x(pad);
+    inputs->substick_y = get_substick_y(pad);
     temp_ret = gm_GetButtonsPressed(slot);
     inputs->buttons_pressed = temp_ret;
     temp_ret = gm_GetButtonsTriggered(slot);
@@ -1911,6 +1908,11 @@ static inline void Camera_8002C1A8_inline(void)
     }
 }
 
+static inline f32 getPauseScale(void)
+{
+    return game_camera.x32C * cm_803BCCA0.x8C + cm_803BCCA0.x90;
+}
+
 void Camera_8002C1A8(void)
 {
     CameraInputs inputs;
@@ -1926,7 +1928,6 @@ void Camera_8002C1A8(void)
     f32 scale;
     s32 dir;
     s8 slot;
-    PAD_STACK(4);
 
     if (game_camera.x305 == 5) {
         return;
@@ -1993,7 +1994,7 @@ void Camera_8002C1A8(void)
     }
 
     if (dir != 0) {
-        scale = game_camera.x32C * cm_803BCCA0.x8C + cm_803BCCA0.x90;
+        scale = getPauseScale();
         game_camera.x304 = Camera_8002BA00(game_camera.x304, dir);
         slot = game_camera.x304;
         game_camera.x314.x = game_camera.x314.y = game_camera.x314.z = 0.0f;
@@ -2174,7 +2175,7 @@ static inline bool get_subject_pos(Vec3* pos, const s8* slot_ptr)
         Stage_UnkSetVec3TCam_Offset(pos);
     } else {
         gobj = Player_GetEntity(slot);
-        if (gobj != NULL && (subject = ftLib_80086B74(gobj)) != NULL) {
+        if (gobj != NULL && (subject = ftLib_GetCameraSubject(gobj)) != NULL) {
             *pos = subject->bone_pos;
         } else {
             valid = false;
@@ -2183,53 +2184,7 @@ static inline bool get_subject_pos(Vec3* pos, const s8* slot_ptr)
     return valid;
 }
 
-#ifdef MUST_MATCH
-#pragma inline_depth(8)
-#endif
-static inline void get_subject_pos_out(Vec3* pos, const s8* slot_ptr,
-                                       bool* valid_out)
-{
-    CmSubject* subject;
-    HSD_GObj* gobj;
-    s32 slot;
-
-    slot = *slot_ptr;
-    *valid_out = true;
-    if (slot == 0xB) {
-        *valid_out = false;
-    } else if (slot == 0xA) {
-        Stage_UnkSetVec3TCam_Offset(pos);
-    } else {
-        gobj = Player_GetEntity(slot);
-        if (gobj != NULL && (subject = ftLib_80086B74(gobj)) != NULL) {
-            *pos = subject->bone_pos;
-        } else {
-            *valid_out = false;
-        }
-    }
-}
-
-static inline void camera_cddc_select(s8* slot_ptr)
-{
-    Vec3* pos_ptr;
-    bool valid;
-    HSD_GObj* gobj;
-
-    if (*slot_ptr == 11) {
-        return;
-    }
-    pos_ptr = &game_camera.x308;
-    while (*slot_ptr == 10 ||
-           (get_subject_pos_out(pos_ptr, slot_ptr, &valid), !valid) ||
-           (gobj = Player_GetEntity(*slot_ptr)) == NULL ||
-           ftLib_8008701C(gobj))
-    {
-        *slot_ptr = Camera_8002BA00(*slot_ptr, 1);
-    }
-}
-
-static inline Vec3*
-camera_cddc_target_interest(CameraTransformState* transform)
+static inline Vec3* get_target_interest(CameraTransformState* transform)
 {
     return &transform->target_interest;
 }
@@ -2247,7 +2202,8 @@ static inline void track_subject(CameraTransformState* transform,
 
     copy_src = &game_camera.transform.target_interest;
     *copy_src = game_camera.x308;
-    lbVector_Add(camera_cddc_target_interest(transform), &game_camera.x314);
+    lbVector_Add(get_target_interest(&game_camera.transform),
+                 &game_camera.x314);
 
     game_camera.transform.target_position = *copy_src;
     target_pos = &transform->target_position;
@@ -2263,8 +2219,8 @@ static inline void track_subject(CameraTransformState* transform,
     eye_diff->z *= coeff;
     lbVector_Add(position_ptr, eye_diff);
 
-    lbVector_Diff(camera_cddc_target_interest(transform), &transform->interest,
-                  interest_diff);
+    lbVector_Diff(get_target_interest(&game_camera.transform),
+                  &transform->interest, interest_diff);
     coeff = *coeff_ptr;
     interest_diff->x *= coeff;
     interest_diff->y *= coeff;
@@ -2339,6 +2295,11 @@ void Camera_8002C908(void* arg0)
     Camera_ApplyQuake(&bounds, &game_camera.transform);
 }
 
+static inline f32 absf(f32 x)
+{
+    return ABS(x);
+}
+
 /// Camera_PauseThink
 void Camera_8002CB0C(CameraBounds* bounds)
 {
@@ -2356,7 +2317,6 @@ void Camera_8002CB0C(CameraBounds* bounds)
     f32 stick_y;
     f32 z_init;
     f32 abs_f1;
-    PAD_STACK(8);
 
     camera = &game_camera;
 
@@ -2391,12 +2351,12 @@ void Camera_8002CB0C(CameraBounds* bounds)
         }
     }
 
-    abs_f1 = ABS(stick_x);
+    abs_f1 = absf(stick_x);
     if (abs_f1 > 0.125) {
         x_val = stick_x;
     }
 
-    abs_f1 = ABS(stick_y);
+    abs_f1 = absf(stick_y);
     if (abs_f1 > 0.125) {
         y_val = stick_y;
     }
@@ -2408,7 +2368,7 @@ void Camera_8002CB0C(CameraBounds* bounds)
 
         while (*slot == 10 || !get_subject_pos(x308_ptr, slot) ||
                (entity = Player_GetEntity(*slot)) == NULL ||
-               ftLib_8008701C(entity))
+               ftLib_IsSleeping(entity))
         {
             *slot = Camera_8002BA00(*slot, dir);
         }
@@ -2445,7 +2405,7 @@ void Camera_8002CB0C(CameraBounds* bounds)
 void Camera_8002CDDC(void* unused)
 {
     s8* slot_ptr;
-    CameraTransformState* late_transform;
+    CameraTransformState* transform;
     HSD_GObj* gobj;
     CmSubject* subject;
     CameraBounds bounds;
@@ -2459,17 +2419,25 @@ void Camera_8002CDDC(void* unused)
     Camera_800293E0();
     Camera_8002958C(&bounds, &game_camera.transform);
     slot_ptr = &game_camera.x2C4;
-    late_transform = &game_camera.transform;
-    camera_cddc_select(slot_ptr);
+    transform = &game_camera.transform;
+    if (*slot_ptr != 11) {
+        while (*slot_ptr == 10 ||
+               !get_subject_pos(&game_camera.x308, slot_ptr) ||
+               (gobj = Player_GetEntity(*slot_ptr)) == NULL ||
+               ftLib_IsSleeping(gobj))
+        {
+            *slot_ptr = Camera_8002BA00(*slot_ptr, 1);
+        }
+    }
     Camera_8002CB0C(&bounds);
     if (*slot_ptr != 10 && *slot_ptr != 11 &&
         (gobj = Player_GetEntity(*slot_ptr)) != NULL &&
-        (subject = ftLib_80086B74(gobj)) != NULL && Camera_8002928C(subject) &&
-        subject->state == CmSubjectState_Active &&
+        (subject = ftLib_GetCameraSubject(gobj)) != NULL &&
+        Camera_8002928C(subject) && subject->state == CmSubjectState_Active &&
         Camera_80029124(&subject->bone_pos, 0) == CAM_BOUNDS_INSIDE &&
         ABS(subject->bone_pos.z) < 30.0f)
     {
-        track_subject(late_transform, &interest_diff, &eye_diff);
+        track_subject(transform, &interest_diff, &eye_diff);
         game_camera.transform.target_fov = cm_803BCCA0.x6C;
         delta = game_camera.transform.target_fov - game_camera.transform.fov;
         game_camera.transform.fov += delta * cm_803BCCA0.x70;
@@ -2486,9 +2454,6 @@ void Camera_8002CDDC(void* unused)
     update_avg_bounds_width();
 }
 
-#ifdef MUST_MATCH
-#pragma inline_depth(2)
-#endif
 static inline f32 compute_orbit_distance(s32 slot)
 {
     f32 distance;
@@ -2497,7 +2462,7 @@ static inline f32 compute_orbit_distance(s32 slot)
 
     if (slot != 10 && slot != 11 && slot >= 0 && slot < 6 &&
         (gobj = Player_GetEntity(slot)) != NULL &&
-        (subject = ftLib_80086B74(gobj)) != NULL)
+        (subject = ftLib_GetCameraSubject(gobj)) != NULL)
     {
         distance = (2.0f * subject->ext.v.z) /
                    tanf(MTXDegToRad(game_camera.transform.target_fov));
@@ -2540,14 +2505,15 @@ void Camera_8002D318(void* unused)
     CameraBounds bounds;
 
     gobj = Player_GetEntity(game_camera.x2C4);
-    if (gobj != NULL && ftLib_8008701C(gobj) == false &&
-        (subject = ftLib_80086B74(gobj)) != NULL && Camera_8002928C(subject) &&
+    if (gobj != NULL && ftLib_IsSleeping(gobj) == false &&
+        (subject = ftLib_GetCameraSubject(gobj)) != NULL &&
+        Camera_8002928C(subject) &&
         Camera_80029124(&subject->bone_pos, 0) == CAM_BOUNDS_INSIDE &&
         ABS(subject->bone_pos.z) < 10.0f)
     {
         Camera_80030DF8();
         if ((gobj = Player_GetEntity(game_camera.x2C4)) != NULL &&
-            (subject = ftLib_80086B74(gobj)) != NULL)
+            (subject = ftLib_GetCameraSubject(gobj)) != NULL)
         {
             pos = get_subject_x1C(subject);
             half_z = 0.5f * subject->ext.v.z;
@@ -2577,7 +2543,7 @@ void Camera_8002D318(void* unused)
 
             if (slot != 10 && slot != 11 && slot >= 0 && slot < 6 &&
                 (gobj = Player_GetEntity(slot)) != NULL &&
-                (subject = ftLib_80086B74(gobj)) != NULL)
+                (subject = ftLib_GetCameraSubject(gobj)) != NULL)
             {
                 distance = (2.0f * subject->ext.v.z) /
                            tanf(MTXDegToRad(game_camera.transform.target_fov));
@@ -2640,13 +2606,13 @@ void Camera_8002D85C(void* unused)
     CameraBounds bounds;
 
     gobj = Player_GetEntity(game_camera.x2C4);
-    if (gobj != NULL && (subject = ftLib_80086B74(gobj)) != NULL &&
+    if (gobj != NULL && (subject = ftLib_GetCameraSubject(gobj)) != NULL &&
         Camera_80029124(&subject->bone_pos, 0) == CAM_BOUNDS_INSIDE &&
         ABS(subject->bone_pos.z) < 30.0f)
     {
         Camera_80030DF8();
         gobj = Player_GetEntity(game_camera.x2C4);
-        if (gobj != NULL && (subject = ftLib_80086B74(gobj)) != NULL) {
+        if (gobj != NULL && (subject = ftLib_GetCameraSubject(gobj)) != NULL) {
             subj_pos = get_subject_x1C(subject);
             game_camera.transform.target_interest.x = subj_pos->x;
             game_camera.transform.target_interest.y = subj_pos->y;
@@ -2672,7 +2638,7 @@ void Camera_8002D85C(void* unused)
 
             if (slot != 10 && slot != 11 && slot >= 0 && slot < 6 &&
                 (gobj = Player_GetEntity(slot)) != NULL &&
-                (subject = ftLib_80086B74(gobj)) != NULL)
+                (subject = ftLib_GetCameraSubject(gobj)) != NULL)
             {
                 distance = (2.0f * subject->ext.v.z) /
                            tanf(MTXDegToRad(game_camera.transform.target_fov));
@@ -2834,8 +2800,7 @@ void Camera_8002DDC4(void* unused)
     Camera_ApplyQuake(&bounds, &cam->transform);
 }
 
-s32 Camera_8002DFE4(Vec3* arg0, Vec3* interest,
-                    CameraTransformState* transform)
+s32 Camera_8002DFE4(Vec3* start, Vec3* end, Vec3* out)
 {
     Vec3 sp14;
     f32 var_f31;
@@ -2862,15 +2827,15 @@ s32 Camera_8002DFE4(Vec3* arg0, Vec3* interest,
         break;
     }
     if (var_r31 != 0) {
-        transform->interest = *interest;
+        *out = *end;
 
     } else {
-        lbVector_Diff(interest, arg0, &sp14);
+        lbVector_Diff(end, start, &sp14);
         sp14.x *= var_f31;
         sp14.y *= var_f31;
         sp14.z *= var_f31;
-        lbVector_Add(&sp14, arg0);
-        transform->interest = sp14;
+        lbVector_Add(&sp14, start);
+        *out = sp14;
     }
     return var_r31;
 }
@@ -2926,30 +2891,30 @@ bool Camera_8002E234(void)
     case 0:
     case 1:
     case 3:
-        ret = Camera_8002DFE4(
-            &game_camera.x368, &game_camera.transform.target_position,
-            (CameraTransformState*) &game_camera.transform.position);
+        ret = Camera_8002DFE4(&game_camera.x368.vec,
+                              &game_camera.transform.target_position,
+                              &game_camera.transform.position);
         break;
     case 2:
         ret = true;
-        if (game_camera.x35C.bits.b1) {
-            ret &= Camera_8002E158(&sp10, game_camera.x368.y,
-                                   game_camera.x35C.vec.y);
+        if (game_camera.x35C.orbit.b1) {
+            ret &= Camera_8002E158(&sp10, game_camera.x368.orbit.pitch,
+                                   game_camera.x35C.orbit.pitch);
         }
-        if (game_camera.x35C.bits.b2) {
-            ret &= Camera_8002E158(&spC, game_camera.x368.z,
-                                   game_camera.x35C.vec.z);
+        if (game_camera.x35C.orbit.b2) {
+            ret &= Camera_8002E158(&spC, game_camera.x368.orbit.yaw,
+                                   game_camera.x35C.orbit.yaw);
         }
-        if (game_camera.x35C.bits.b0) {
-            ret &= Camera_8002E158(&sp8, *(s16*) &game_camera.x368,
-                                   game_camera.x35C.bits.x2);
+        if (game_camera.x35C.orbit.b0) {
+            ret &= Camera_8002E158(&sp8, game_camera.x368.orbit.distance,
+                                   game_camera.x35C.orbit.distance);
         }
         sp14.y = 0.0f;
         sp14.x = 0.0f;
         sp14.z = 1.0f;
-        lbVector_Rotate(&sp14, 1, -game_camera.x35C.vec.y);
-        lbVector_Rotate(&sp14, 2, game_camera.x35C.vec.z);
-        temp_f31 = game_camera.x35C.bits.x2;
+        lbVector_Rotate(&sp14, 1, -game_camera.x35C.orbit.pitch);
+        lbVector_Rotate(&sp14, 2, game_camera.x35C.orbit.yaw);
+        temp_f31 = game_camera.x35C.orbit.distance;
         lbVector_Normalize(&sp14);
         sp14.x *= temp_f31;
         sp14.y *= temp_f31;
@@ -2973,12 +2938,16 @@ bool Camera_8002E234(void)
     return ret;
 }
 
+static inline f32 getX378(void)
+{
+    return game_camera.x378.f32_v;
+}
+
 void Camera_8002E490(void* unused)
 {
     Vec3 sp1C;
     Vec3 sp10;
     s32 var_r29;
-    PAD_STACK(4);
 
     Camera_80030DF8();
 
@@ -2986,7 +2955,7 @@ void Camera_8002E490(void* unused)
     case 1: {
         HSD_GObj* gobj = Player_GetEntity(game_camera.x344.slot);
         if (gobj != NULL) {
-            CmSubject* subject = ftLib_80086B74(gobj);
+            CmSubject* subject = ftLib_GetCameraSubject(gobj);
             if (subject != NULL) {
                 game_camera.transform.target_interest = subject->bone_pos;
             }
@@ -3029,7 +2998,7 @@ void Camera_8002E490(void* unused)
     case 3:
         var_r29 = Camera_8002DFE4(&game_camera.x350,
                                   &game_camera.transform.target_interest,
-                                  &game_camera.transform);
+                                  &game_camera.transform.interest);
         break;
     }
     var_r29 &= Camera_8002E234();
@@ -3047,7 +3016,7 @@ void Camera_8002E490(void* unused)
     case 2:
         game_camera.x378.f32_v +=
             (1.0f - game_camera.x378.f32_v) * game_camera.x37C.f32_v;
-        if (game_camera.x378.f32_v > 0.999f) {
+        if (getX378() > 0.999f) {
             game_camera.x378.f32_v = 1.0f;
         }
         break;
@@ -3071,7 +3040,7 @@ void Camera_8002E6FC(int arg0)
     case 1: {
         HSD_GObj* gobj = Player_GetEntity(game_camera.x344.slot);
         if (gobj != NULL) {
-            CmSubject* subject = ftLib_80086B74(gobj);
+            CmSubject* subject = ftLib_GetCameraSubject(gobj);
             if (subject != NULL) {
                 game_camera.transform.target_interest = subject->bone_pos;
             }
@@ -3108,7 +3077,7 @@ void Camera_8002E818(Vec3* pos)
     case 1: {
         HSD_GObj* gobj = Player_GetEntity(game_camera.x344.slot);
         if (gobj != NULL) {
-            CmSubject* subject = ftLib_80086B74(gobj);
+            CmSubject* subject = ftLib_GetCameraSubject(gobj);
             if (subject != NULL) {
                 game_camera.transform.target_interest = subject->bone_pos;
             }
@@ -3145,7 +3114,7 @@ void Camera_8002E948(bool (*cb)(Vec*))
     case 1: {
         HSD_GObj* gobj = Player_GetEntity(game_camera.x344.slot);
         if (gobj != NULL) {
-            CmSubject* subject = ftLib_80086B74(gobj);
+            CmSubject* subject = ftLib_GetCameraSubject(gobj);
             if (subject != NULL) {
                 game_camera.transform.target_interest = subject->bone_pos;
             }
@@ -3201,12 +3170,12 @@ void Camera_8002EB5C(float arg0)
 
     if (game_camera.x341_b3_b4 != 2) {
         game_camera.x341_b3_b4 = 2;
-        game_camera.x35C.bits.b0 = 0;
-        game_camera.x35C.bits.b2 = 0;
+        game_camera.x35C.orbit.b0 = 0;
+        game_camera.x35C.orbit.b2 = 0;
     }
 
-    game_camera.x35C.vec.y = arg0;
-    game_camera.x35C.bits.b1 = 1;
+    game_camera.x35C.orbit.pitch = arg0;
+    game_camera.x35C.orbit.b1 = 1;
 
     switch (game_camera.x341_b3_b4) {
     case 1:
@@ -3234,12 +3203,12 @@ void Camera_8002EC7C(float arg0)
 
     if (game_camera.x341_b3_b4 != 2) {
         game_camera.x341_b3_b4 = 2;
-        game_camera.x35C.bits.b0 = 0;
-        game_camera.x35C.bits.b1 = 0;
+        game_camera.x35C.orbit.b0 = 0;
+        game_camera.x35C.orbit.b1 = 0;
     }
 
-    game_camera.x35C.vec.z = arg0;
-    game_camera.x35C.bits.b2 = 1;
+    game_camera.x35C.orbit.yaw = arg0;
+    game_camera.x35C.orbit.b2 = 1;
 
     switch (game_camera.x341_b3_b4) {
     case 1:
@@ -3267,12 +3236,12 @@ void Camera_8002ED9C(float arg0)
 
     if (game_camera.x341_b3_b4 != 2) {
         game_camera.x341_b3_b4 = 2;
-        game_camera.x35C.bits.b1 = 0;
-        game_camera.x35C.bits.b2 = 0;
+        game_camera.x35C.orbit.b1 = 0;
+        game_camera.x35C.orbit.b2 = 0;
     }
 
-    game_camera.x35C.bits.x2 = arg0;
-    game_camera.x35C.bits.b0 = 1;
+    game_camera.x35C.orbit.distance = arg0;
+    game_camera.x35C.orbit.b0 = 1;
 
     switch (game_camera.x341_b3_b4) {
     case 1:
@@ -3315,7 +3284,7 @@ void Camera_8002EF14(void)
     case 1: {
         HSD_GObj* gobj = Player_GetEntity(game_camera.x344.slot);
         if (gobj != NULL) {
-            CmSubject* subject = ftLib_80086B74(gobj);
+            CmSubject* subject = ftLib_GetCameraSubject(gobj);
             if (subject != NULL) {
                 game_camera.transform.target_interest = subject->bone_pos;
             }
@@ -3342,7 +3311,7 @@ void Camera_8002EF14(void)
     case 3:
         Camera_8002DFE4(&game_camera.x350,
                         &game_camera.transform.target_interest,
-                        &game_camera.transform);
+                        &game_camera.transform.interest);
         break;
     }
 
@@ -3394,17 +3363,17 @@ void Camera_8002F0E4(s32 arg0)
     case 0:
     case 1:
     case 3:
-        game_camera.x368 = game_camera.transform.position;
+        game_camera.x368.vec = game_camera.transform.position;
         break;
     case 2: {
         lbVector_Diff(&game_camera.transform.position,
                       &game_camera.transform.interest, &spC);
         temp_f30 = atan2f(spC.y, sqrtf__Ff(spC.x * spC.x + spC.z * spC.z));
         temp_f31 = atan2f(spC.x, spC.z);
-        *(s16*) &game_camera.x368 =
+        game_camera.x368.orbit.distance =
             (s16) sqrtf__Ff(spC.z * spC.z + (spC.x * spC.x + spC.y * spC.y));
-        game_camera.x368.y = temp_f30;
-        game_camera.x368.z = temp_f31;
+        game_camera.x368.orbit.pitch = temp_f30;
+        game_camera.x368.orbit.yaw = temp_f31;
         break;
     }
     }
@@ -3451,14 +3420,14 @@ void fn_8002F360(HSD_GObj* x)
     }
 }
 
+static inline HSD_GObj* getCameraGObj(void)
+{
+    return game_camera.gobj;
+}
+
 void Camera_8002F3AC(void)
 {
-    HSD_GObj* gobj = game_camera.gobj;
-    PAD_STACK(1);
-
-    if (cm_803BCB18.callback[game_camera.mode] != NULL) {
-        cm_803BCB18.callback[game_camera.mode](gobj);
-    }
+    fn_8002F360(getCameraGObj());
     game_camera.transform.position = game_camera.transform.target_position;
     game_camera.transform.interest = game_camera.transform.target_interest;
     game_camera.transform.fov = game_camera.transform.target_fov;
@@ -3598,7 +3567,7 @@ void Camera_8002F7AC(s8 slot)
     game_camera.x2C4 = slot;
     fighter_gobj = Player_GetEntity(game_camera.x2C4);
     if (fighter_gobj != NULL) {
-        cam_box = ftLib_80086B74(fighter_gobj);
+        cam_box = ftLib_GetCameraSubject(fighter_gobj);
         if (cam_box != NULL) {
             direction = cam_box->facing_dir;
             if (direction > 0.0f) {
@@ -3693,7 +3662,7 @@ void Camera_8002F9E4(s8 arg0, s8 arg1)
     game_camera.x2D0.angle_right = Stage_GetCamAngleRadiansRight();
     game_camera.x2D0.angle_left = Stage_GetCamAngleRadiansLeft();
 
-    scale = game_camera.x32C * cm_803BCCA0.x8C + cm_803BCCA0.x90;
+    scale = getPauseScale();
     game_camera.x2D0.unk28 = scale * cm_803BCCA0.x94;
     game_camera.x2D0.unk2C = scale * cm_803BCCA0.x98;
     game_camera.x2D0.callback = (void (*)(Camera_x2D0*))(Event) fn_8002F908;
@@ -3816,8 +3785,8 @@ void Camera_8002FE38(void)
 
     game_camera.x350 = game_camera.transform.interest;
     game_camera.transform.target_interest = game_camera.x350;
-    game_camera.x368 = game_camera.transform.position;
-    game_camera.transform.target_position = game_camera.x368;
+    game_camera.x368.vec = game_camera.transform.position;
+    game_camera.transform.target_position = game_camera.x368.vec;
     game_camera.transform.target_fov = game_camera.x374 =
         game_camera.transform.fov;
 }
@@ -3836,7 +3805,7 @@ void Camera_8002FEEC(s32 arg0)
     f32 temp_f1_4;
 
     if (Player_GetEntity(arg0) != NULL) {
-        box = ftLib_80086B74(Player_GetEntity(arg0));
+        box = ftLib_GetCameraSubject(Player_GetEntity(arg0));
         if ((box != NULL) && ((game_camera.mode) != CAMERA_DEBUG_FOLLOW)) {
             if (game_camera.mode <= (u32) CAMERA_PAUSE) {
                 cm_80453004.last_mode = game_camera.mode;
@@ -3928,7 +3897,8 @@ bool Camera_80030178(void)
 
 Vec3* Camera_8003019C(void)
 {
-    return &ftLib_80086B74(Player_GetEntity(cm_80453004.ply_slot))->bone_pos;
+    return &ftLib_GetCameraSubject(Player_GetEntity(cm_80453004.ply_slot))
+                ->bone_pos;
 }
 
 /// @todo these are probably somewhat fake, but maybe a combination of this +
@@ -3983,7 +3953,7 @@ static inline void render_gxlink_pass(HSD_GObj* gobj, int pass, int gxlink)
     HSD_GObj_80390ED0(gobj, gxlink);
 }
 
-static void fn_800301D0(HSD_GObj* gobj, int arg1)
+static void fn_800301D0(HSD_GObj* gobj, intptr_t arg1)
 {
     s64 prio8_a;
     s64 prio1_a;
@@ -4299,9 +4269,8 @@ bool Camera_80030BBC(Vec3* arg0, S32Vec2* arg1)
     Scissor scissor;
     s32 px;
     s32 py;
-    PAD_STACK(4);
 
-    cobj = GET_COBJ(game_camera.gobj);
+    cobj = GET_COBJ(Camera_80030A50());
     if (lbVector_WorldToScreen(cobj, arg0, &point, 1) == NULL) {
         return false;
     }
@@ -4342,9 +4311,8 @@ bool Camera_80030CFC(CmSubject* cam_box, f32 tolerance)
     u8 _PAD[12];
     Vec3 sp20;
     f32 range;
-    PAD_STACK(2);
 
-    cobj = GET_COBJ(game_camera.gobj);
+    cobj = GET_COBJ(Camera_80030A50());
     HSD_CObjGetEyePosition(cobj, &eye_pos);
     HSD_CObjGetInterest(cobj, &interest);
     if (lbVector_8000E838(&interest, &eye_pos, &cam_box->bone_pos, &sp38) <

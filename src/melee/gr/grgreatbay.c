@@ -184,7 +184,7 @@ typedef struct grGb_StageAttr {
     /* 0x6C */ f32 kame_ud_scale;
     /* 0x70 */ s16 kame_dir_prob[4];
     /* 0x78 */ f32 kame_item_prob;
-    /* 0x7C */ struct {
+    /* 0x7C */ struct grGb_StageAttr_items {
         s16 kind;
         s16 weight;
     } items[10];
@@ -731,9 +731,9 @@ void grGreatBay_801F5914(void* user_data, int joint_id, CollData* coll,
 #endif
         temp_r0 == 3)
     {
-        gp->u.greatbay.xD4 = ((u32) coll->env_flags & Collide_LedgeGrabMask);
-        gp->u.greatbay.xD8 += 1;
-        gp->u.greatbay.xE0 += coll_x50 / 100.0f;
+        gp->u.greatbay4.xD4 = ((u32) coll->env_flags & Collide_LedgeGrabMask);
+        gp->u.greatbay4.xD8 += 1;
+        gp->u.greatbay4.xE0 += coll_x50 / 100.0f;
     }
 }
 
@@ -1160,8 +1160,8 @@ bool grGreatBay_801F6708(u32 unk, HSD_GObj* gobj)
     f32 arg;
     PAD_STACK(8);
 
-    ftLib_80086644(gobj, &current);
-    ftLib_80086684(gobj, &previous);
+    ftLib_GetPos(gobj, &current);
+    ftLib_GetPrevPos(gobj, &previous);
     if (ft_80087838(gobj) == false) {
         if (current.y < -5.0f) {
             if (previous.y > -5.0f) {
@@ -1190,7 +1190,7 @@ void grGreatBay_801F67A4(Vec3* vec, f32 arg8)
     }
 }
 
-DynamicsDesc* grGreatBay_801F680C(enum_t unused)
+lbColl_80008D30_arg1* grGreatBay_801F680C(enum_t unused)
 {
     return NULL;
 }

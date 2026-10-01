@@ -1,11 +1,14 @@
 #include "mndatadel.h"
 
+#include <sysdolphin/baselib/forward.h>
+
 #include <placeholder.h>
 
+#include "forward.h"
 #include "inlines.h"
-#include "mndatadel.static.h"
 #include "mnmain.h"
 #include "mnmainrule.h"
+#include "types.h"
 #include <melee/gm/gm_1601.h>
 #include <melee/gm/gm_16F1.h>
 #include <melee/gm/gm_1A36.h>
@@ -26,6 +29,64 @@
 #include <sysdolphin/baselib/gobjuserdata.h>
 #include <sysdolphin/baselib/jobj.h>
 #include <sysdolphin/baselib/memory.h>
+
+struct WarnCmnData {
+    /* +00 */ u8 x0;
+    /* +01 */ u8 visible;
+    /* +02 */ u8 cursor_idx;
+};
+
+enum WarnCommonJoints {
+    WARN_JOINT_ROOT,
+    WARN_JOINT_BACKGROUND,
+    WARN_JOINT_PANEL,             ///< main panel root
+    WARN_JOINT_PANEL_TOP,         ///< top position of the panel/text box
+    WARN_JOINT_PANEL_TEXT_BOTTOM, ///< bottom position of the text box
+    WARN_JOINT_PANEL_BOTTOM,      ///< bottom position of the panel
+    WARN_JOINT_CURSOR_YES,
+    WARN_JOINT_CURSOR_NO,
+    WARN_JOINT_EXCLAIM,
+    WARN_JOINT_EXCLAIM_MARK,
+    WARN_JOINT_EXCLAIM_ARROW,
+    WARN_JOINT_PROGRESS_BAR,
+    WARN_JOINT_PROGRESS_BAR_START,
+    WARN_JOINT_PROGRESS_BAR_END,
+};
+
+struct MnDataDelData {
+    AnimLoopSettings x0;
+    AnimLoopSettings xC;
+};
+
+struct MnDataDelGObjUserData {
+    /* +00 */ u8 x0;
+    /* +01 */ u8 x1;
+    /* +02 */ u8 x2;
+    /* +03 */ u8 x3[6];
+    /* +0C */ HSD_Text* xC;
+    /* +10 */ HSD_JObj* x10[8];
+};
+
+#define FRAME_IN_RANGE(frame, settings)                                       \
+    ((frame) >= (settings).start_frame && (frame) < (settings).end_frame)
+
+static struct MnDataDelData mnDataDel_803EF870 = {
+    { 0, 19, -0.1 },
+    { 20, 29, -0.1 },
+};
+static AnimLoopSettings mnDataDel_803EF888 = { 0, 5, -0.1F };
+static AnimLoopSettings mnDataDel_803EF894 = { 0, 0, -0.1F };
+static AnimLoopSettings mnDataDel_803EF8A0 = {
+    0.0f, 9.0f, -0.1f
+}; /// mnDataDel_803EF870[4]
+static u32 mnDataDel_803EF8AC[] = { 1, 2, 3, 4, 5, 6, 7 };
+static u16 mnDataDel_803EF8C8[] = {
+    0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC6,
+};
+static Vec3 lbl_803EF8D4 = { -5.5F, -2.8F, 23 };
+static StaticModelDesc mnDataDel_804A0918;
+static StaticModelDesc mnDataDel_804A0928;
+static StaticModelDesc mnDataDel_804A0938;
 
 HSD_Text* mnDataDel_804D6C6C;
 HSD_GObj* mnDataDel_804D6C68;
@@ -191,6 +252,15 @@ static inline struct WarnCmnData* mnDataDel_GetWarnData(void)
     return mnDataDel_804D6C68->user_data;
 }
 
+union mnDataDel_AnimateWarning_cursor {
+    struct mnDataDel_AnimateWarning_cursor_fields {
+        u8 pad[12];
+        HSD_JObj* yes;
+        HSD_JObj* no;
+    } fields;
+    HSD_JObj* slots[5];
+};
+
 /// @brief animates the warning modal
 static inline void mnDataDel_AnimateWarning(HSD_JObj* root, HSD_GObj* gobj,
                                             struct WarnCmnData* data,
@@ -231,14 +301,7 @@ static inline void mnDataDel_AnimateWarning(HSD_JObj* root, HSD_GObj* gobj,
                 HSD_SisLib_803A6368(text, sis_id);
             }
         } else {
-            union {
-                struct {
-                    u8 pad[12];
-                    HSD_JObj* yes;
-                    HSD_JObj* no;
-                } fields;
-                HSD_JObj* slots[5];
-            } cursor;
+            union mnDataDel_AnimateWarning_cursor cursor;
             cursor_idx = data->cursor_idx;
             lb_80011E24(root, &cursor.slots[3], WARN_JOINT_CURSOR_YES, -1);
             lb_80011E24(root, &cursor.slots[4], WARN_JOINT_CURSOR_NO, -1);
@@ -878,7 +941,7 @@ void mnDataDel_80250170(void)
     mnDataDel_804D6C6C = NULL;
     archive = mn_804D6BB8;
     lbArchive_LoadSections(
-        archive, (void**) &assets[0].joint, "MenMainConDl_Top_joint",
+        archive, &assets[0].joint, "MenMainConDl_Top_joint",
         &assets[0].animjoint, "MenMainConDl_Top_animjoint",
         &assets[0].matanim_joint, "MenMainConDl_Top_matanim_joint",
         &assets[0].shapeanim_joint, "MenMainConDl_Top_shapeanim_joint",

@@ -60,7 +60,7 @@ ItemStateTable it_803F93C8[] = {
       itCoin_UnkMotion5_Coll },
 };
 
-void it_802F13B4(Item_GObj* gobj, int arg1)
+void it_802F13B4(Item_GObj* gobj, intptr_t arg1)
 {
     Item* ip = GET_ITEM(gobj);
     itCoinAttributes* attr = ip->xC4_article_data->x4_specialAttributes;
@@ -390,7 +390,7 @@ Item_GObj* it_802F2094(HSD_GObj* arg0, Vec3* pos, int arg2, int arg3)
     spawn.x3C_damage = 0;
     spawn.x0_parent_gobj = NULL;
     spawn.x4_parent_gobj2 = NULL;
-    spawn.x44_flag.b0 = true;
+    spawn.x44_flag.x0.b0 = true;
     spawn.x40 = 0.0F;
 
     gobj = Item_80268B18(&spawn);

@@ -56,7 +56,7 @@ static Vec3 const grFigureGet_803B8470 = { 0.0f, 0.0f, 0.0f };
                                               CollData* coll, int coll_x50,
                                               mpLib_GroundEnum ground_kind,
                                               float delta_y);
-/* 219C88 */ static DynamicsDesc* grFigureGet_OnTouchLine(enum_t);
+/* 219C88 */ static lbColl_80008D30_arg1* grFigureGet_OnTouchLine(enum_t);
 /* 219C90 */ static bool grFigureGet_OnCheckShadowRender(Vec3*, int,
                                                          HSD_JObj*);
 
@@ -230,7 +230,7 @@ void grFigureGet_80219898(Ground_GObj* gobj)
     for (var_r28 = HSD_GObjPLinkHead[HSD_GOBJ_PLINK_FIGHTER]; var_r28 != NULL;
          var_r28 = var_r28->next)
     {
-        ftLib_80086984(var_r28)->joint_id_skip = 0;
+        ftLib_GetCollData(var_r28)->joint_id_skip = 0;
     }
     if (gp->u.figureget.x4 < yakumono_param->x8) {
         temp_r3 = gp->u.figureget.x0;
@@ -347,7 +347,7 @@ bool grFigureGet_80219C50(HSD_GObj* gobj)
     return false;
 }
 
-DynamicsDesc* grFigureGet_OnTouchLine(enum_t arg0)
+lbColl_80008D30_arg1* grFigureGet_OnTouchLine(enum_t arg0)
 {
     return NULL;
 }

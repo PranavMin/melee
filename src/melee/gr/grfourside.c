@@ -2,6 +2,7 @@
 
 #include <Runtime/platform.h>
 
+#include <math.h>
 #include <placeholder.h>
 
 #include "forward.h"
@@ -762,7 +763,7 @@ int grFourside_801F3F10(void)
     return 0;
 }
 
-void fn_801F3F74(HSD_GObj* gobj, int renderpass)
+void fn_801F3F74(HSD_GObj* gobj, intptr_t renderpass)
 {
     Vec3 eye;
     Ground* gp;
@@ -793,7 +794,7 @@ void fn_801F3F74(HSD_GObj* gobj, int renderpass)
     grDisplay_801C5DB0(gobj, renderpass);
 }
 
-DynamicsDesc* grFourside_801F41E0(enum_t arg)
+lbColl_80008D30_arg1* grFourside_801F41E0(enum_t arg)
 {
     return NULL;
 }

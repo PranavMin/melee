@@ -10,6 +10,7 @@
 #include <dolphin/mtx.h>
 #include <melee/ft/inlines.h> // IWYU pragma: export
 #include <melee/ft/types.h>
+#include <melee/sfx/crowdsfx.h>
 #include <sysdolphin/baselib/objalloc.h>
 
 /**
@@ -26,7 +27,7 @@ extern struct Fighter_804D64FC_t {
     void** x18;      ///< +18 weapon attack tables (per character)
     void** x1C;      ///< +1C edge guard tables (per character)
     float* x20;      ///< +20 distance thresholds (per character)
-    void* x24;       ///< +24 weapon reach bonus table
+    float* x24;      ///< +24 weapon reach bonus table
 }* Fighter_804D64FC;
 
 struct plAllocInfo;
@@ -36,7 +37,7 @@ struct plAllocInfo;
 /* 067ABC */ void Fighter_LoadCommonData(void);
 /* 067BB4 */ void Fighter_UpdateModelScale(Fighter_GObj* gobj);
 /* 067C98 */ void Fighter_UnkInitReset_80067C98(Fighter*);
-/* 068354 */ void Fighter_UnkProcessDeath_80068354(Fighter_GObj* gobj);
+/* 068354 */ void Fighter_Spawn(Fighter_GObj* gobj);
 /* 0686E4 */ void Fighter_UnkUpdateCostumeJoint_800686E4(Fighter_GObj* gobj);
 /* 06876C */ void Fighter_UnkUpdateVecFromBones_8006876C(Fighter* fp);
 /* 068854 */ void Fighter_ResetInputData_80068854(Fighter_GObj* gobj);
@@ -50,19 +51,19 @@ struct plAllocInfo;
                                             f32 anim_start, f32 anim_speed,
                                             f32 anim_blend,
                                             Fighter_GObj* arg3);
-/* 06A1BC */ void Fighter_8006A1BC(Fighter_GObj* gobj);
-/* 06A360 */ void Fighter_8006A360(Fighter_GObj* gobj);
-/* 06ABA0 */ void Fighter_8006ABA0(Fighter_GObj* gobj);
+/* 06A1BC */ void Fighter_procHitlag(Fighter_GObj* gobj);
+/* 06A360 */ void Fighter_procAnim(Fighter_GObj* gobj);
+/* 06ABA0 */ void Fighter_procCpu(Fighter_GObj* gobj);
 /* 06ABEC */ void Fighter_UnkIncrementCounters_8006ABEC(Fighter_GObj* gobj);
-/* 06AD10 */ void Fighter_Spaghetti_8006AD10(Fighter_GObj* gobj);
+/* 06AD10 */ void Fighter_procInput(Fighter_GObj* gobj);
 /* 06B82C */ void Fighter_procUpdate(Fighter_GObj* gobj);
 /* 06C0F0 */ void Fighter_UnkApplyTransformation_8006C0F0(Fighter_GObj* gobj);
 /* 06C27C */ void Fighter_procMap(Fighter_GObj* gobj);
-/* 06C5F4 */ void Fighter_8006C5F4(Fighter_GObj* gobj);
-/* 06C624 */ void Fighter_CallAcessoryCallbacks_8006C624(Fighter_GObj* gobj);
-/* 06C80C */ void Fighter_8006C80C(Fighter_GObj* gobj);
-/* 06CA5C */ void Fighter_UnkProcessGrab_8006CA5C(Fighter_GObj* gobj);
-/* 06CB94 */ void Fighter_8006CB94(Fighter_GObj* gobj);
+/* 06C5F4 */ void Fighter_procIK(Fighter_GObj* gobj);
+/* 06C624 */ void Fighter_procAccessory(Fighter_GObj* gobj);
+/* 06C80C */ void Fighter_procCollPos(Fighter_GObj* gobj);
+/* 06CA5C */ void Fighter_procGrabColl(Fighter_GObj* gobj);
+/* 06CB94 */ void Fighter_procAttackColl(Fighter_GObj* gobj);
 /* 06CC30 */ void Fighter_UnkTakeDamage_8006CC30(Fighter* fp,
                                                  float damage_amount);
 /* 06CC7C */ void Fighter_TakeDamage_8006CC7C(Fighter*, float);
@@ -72,10 +73,10 @@ struct plAllocInfo;
 /* 06CFE0 */ void Fighter_8006CFE0(Fighter_GObj* gobj);
 /* 06D044 */ void Fighter_UnkRecursiveFunc_8006D044(Fighter_GObj* gobj);
 /* 06D10C */ void Fighter_8006D10C(Fighter_GObj* gobj);
-/* 06D1EC */ void Fighter_ProcessHit_8006D1EC(Fighter_GObj* gobj);
-/* 06D9AC */ void Fighter_8006D9AC(Fighter_GObj* gobj);
-/* 06D9EC */ void Fighter_UnkCallCameraCallback_8006D9EC(Fighter_GObj* gobj);
-/* 06DA4C */ void Fighter_8006DA4C(Fighter_GObj* gobj);
+/* 06D1EC */ void Fighter_procCollResolve(Fighter_GObj* gobj);
+/* 06D9AC */ void Fighter_procDynamics(Fighter_GObj* gobj);
+/* 06D9EC */ void Fighter_procCamera(Fighter_GObj* gobj);
+/* 06DA4C */ void Fighter_procPlayer(Fighter_GObj* gobj);
 /* 06DABC */ void Fighter_Unload_8006DABC(void* user_data);
 /* 458FD0 */ extern HSD_ObjAllocData fighter_alloc_data;
 /* 458FFC */ extern HSD_ObjAllocData fighter_dat_attrs_alloc_data;
@@ -186,6 +187,13 @@ typedef struct Fighter_804D6540_x0_t {
     u8 x2;
     u8 x3;
 } Fighter_804D6540_x0_t;
+/// Item throw parameters, one per item throw motion state.
+typedef struct ftCo_ItemThrowAttrs {
+    float velocity_mul;
+    float angle;
+    float x8;
+} ftCo_ItemThrowAttrs;
+
 typedef struct Fighter_804D6540_t {
     Fighter_804D6540_x0_t* x0;
     int x4;
@@ -194,7 +202,36 @@ extern Fighter_804D6540_t** Fighter_804D6540;
 /* 4D6544 */ extern FighterPartsTable** ftPartsTable;
 /* 4D6548 */ extern float* Fighter_804D6548;
 /* 4D654C */ extern float (*Fighter_804D654C)[5];
-/* 4D6550 */ extern int** Fighter_804D6550;
+/* 4D6550 */ extern ftCo_ItemThrowAttrs* Fighter_804D6550;
 /* 4D6554 */ extern ftCommonData* p_ftCommonData;
+
+/// The @c ftLoadCommonData root of @c PlCo.dat: the tables every fighter
+/// shares, copied into the globals of the same types.
+struct ftLoadCommonData {
+    /* +00 */ ftCommonData* common;
+    /* +04 */ ftCo_ItemThrowAttrs* item_throw;
+    /* +08 */ float (*x8)[5];
+    /* +0C */ float* xC;
+    /* +10 */ FighterPartsTable** parts_table;
+    /* +14 */ struct Fighter_804D6540_t** x14;
+    /* +18 */ struct Fighter_804D653C_t* x18;
+    /* +1C */ struct Fighter_804D653C_t* x1C;
+    /* +20 */ UNK_T x20;
+    /* +24 */ Vec2** x24;
+    /* +28 */ struct Fighter_ShakeTable_t* grab_mash_shake;
+    /* +2C */ struct Fighter_ShakeTable_t* smash_charge_shake;
+    /* +30 */ struct Fighter_804D6524_t* x30;
+    /* +34 */ struct Fighter_804D6520_t* x34;
+    /* +38 */ struct Fighter_804D651C_t* x38;
+    /* +3C */ struct Fighter_804D6518_t* x3C;
+    /* +40 */ HSD_Joint* x40;
+    /* +44 */ UNK_T x44;
+    /* +48 */ u8* x48;
+    /* +4C */ u8* x4C;
+    /* +50 */ HSD_Joint* x50;
+    /* +54 */ CrowdConfig* crowd_config;
+    /* +58 */ struct Fighter_804D64FC_t* x58;
+};
+ASSERT_SIZE(struct ftLoadCommonData, 0x5C);
 
 #endif

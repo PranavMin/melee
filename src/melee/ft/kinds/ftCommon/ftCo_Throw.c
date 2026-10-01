@@ -45,7 +45,7 @@ void ftCo_800DD100(Fighter_GObj* gobj)
     Fighter* fp = GET_FIGHTER(gobj);
     Fighter_GObj* victim = fp->victim_gobj;
     if (victim != NULL) {
-        if (fp->x221B_b5) {
+        if (fp->x221B.x221B_b5) {
             ftCo_800DC920(gobj, victim);
         } else {
             ftCo_800DC920(victim, gobj);
@@ -59,7 +59,7 @@ void ftCo_800DD168(Fighter_GObj* gobj)
     Fighter* fp = GET_FIGHTER(gobj);
     Fighter_GObj* victim = fp->victim_gobj;
     if (victim != NULL) {
-        if (fp->x221B_b5) {
+        if (fp->x221B.x221B_b5) {
             ftCo_800DCFD4(victim);
             ftCo_800DC920(gobj, victim);
         } else {
@@ -135,10 +135,11 @@ void ftCo_800DD398(Fighter_GObj* gobj, FtMotionId msid, FtMotionId victim_msid,
     Fighter* fp = GET_FIGHTER(gobj);
     PAD_STACK(0x10);
     fp->cmd_vars[0] = 0;
-    fp->throw_flags = 0;
+    fp->x2210.throw_flags = 0;
     fp->mv.co.fighterthrow.x4 = 0;
     fp->mv.co.fighterthrow.x8 = 0;
-    Fighter_ChangeMotionState(gobj, msid, 0, 0.0f, anim_speed, 0.0f, NULL);
+    Fighter_ChangeMotionState(gobj, msid, Ft_MF_None, 0.0f, anim_speed, 0.0f,
+                              NULL);
     ftAnim_8006EBA4(gobj);
     ftCommon_8007E2F4(fp, 0x1FF);
     ftCo_800DE3FC(fp->victim_gobj, victim_msid, anim_speed);
@@ -244,8 +245,8 @@ bool fn_800DD6E4(Fighter_GObj* gobj, int arg)
 
 static inline bool ftCo_800DD724_inline1(Fighter* fp)
 {
-    if (fp->throw_flags_b4) {
-        fp->throw_flags_b4 = 0;
+    if (fp->x2210.x0.throw_flags_b4) {
+        fp->x2210.x0.throw_flags_b4 = 0;
         return true;
     }
     return false;
@@ -253,8 +254,8 @@ static inline bool ftCo_800DD724_inline1(Fighter* fp)
 
 static inline bool ftCo_800DD724_inline2(Fighter* fp)
 {
-    if (fp->throw_flags_b3) {
-        fp->throw_flags_b3 = 0;
+    if (fp->x2210.x0.throw_flags_b3) {
+        fp->x2210.x0.throw_flags_b3 = 0;
         return true;
     }
     return false;
@@ -271,7 +272,7 @@ void ftCo_800DD724(Fighter_GObj* gobj)
         Fighter_GObj* victim = fp->victim_gobj;
         ftCommon_8007E2F4(fp, 0);
         if (victim != NULL) {
-            pl_80040614(fp->player_id, fp->is_sub_fighter,
+            pl_80040614(fp->player_idx, fp->is_sub_fighter,
                         GET_FIGHTER(victim)->grab_timer);
             ftCo_800DE2A8(gobj, victim);
             ftCo_800DE7C0(victim, gobj, fp->motion_id == 222);
@@ -515,7 +516,7 @@ void ftCo_800DDDE4(Fighter_GObj* gobj, Fighter_GObj* gobj2, bool arg)
     CollData* cd;
     HSD_JObj* jobj;
     PAD_STACK(0x14);
-    if (fp->x221B_b7) {
+    if (fp->x221B.x221B_b7) {
         fp3 = fp2;
         fp4 = fp;
     } else {
@@ -524,8 +525,8 @@ void ftCo_800DDDE4(Fighter_GObj* gobj, Fighter_GObj* gobj2, bool arg)
     }
     fp->x1A5C = NULL;
     fp->victim_gobj = NULL;
-    fp->x221B_b5 = 0;
-    fp->x221B_b7 = 0;
+    fp->x221B.x221B_b5 = 0;
+    fp->x221B.x221B_b7 = 0;
     ftColl_8007891C(gobj, gobj2, hit[0].damage);
     if (fp2->x1988 != 0) {
         ftColl_8007B62C(gobj2, 0);
@@ -540,8 +541,8 @@ void ftCo_800DDDE4(Fighter_GObj* gobj, Fighter_GObj* gobj2, bool arg)
     ftColl_80076640(fp2, &damage);
     fp2->dmg.kb_applied = ftColl_80079AB0(
         fp2, &hit[0], hit[0].unk_count, gm_8016B248(),
-        Player_GetAttackRatio(fp->player_id),
-        Player_GetDefenseRatio(fp2->player_id), p_ftCommonData->x10C);
+        Player_GetAttackRatio(fp->player_idx),
+        Player_GetDefenseRatio(fp2->player_idx), p_ftCommonData->x10C);
     fp2->dmg.x1848_kb_angle = hit[0].kb_angle;
     fp2->dmg.facing_dir_1 = -(fp->facing_dir);
     fp2->dmg.x184c_damaged_hurtbox = 1;
@@ -578,7 +579,7 @@ void ftCo_800DDDE4(Fighter_GObj* gobj, Fighter_GObj* gobj2, bool arg)
     }
     fp2->x1A5C = NULL;
     fp2->victim_gobj = NULL;
-    fp2->x221B_b7 = 0;
+    fp2->x221B.x221B_b7 = 0;
 }
 
 void ftCo_800DE2A8(Fighter_GObj* gobj, Fighter_GObj* other)
@@ -604,7 +605,7 @@ void ftCo_800DE2F0(Fighter_GObj* gobj)
                 NULL, &vec);
     fp->dmg.kb_applied =
         ftColl_80079AB0(fp, &hit, hit.unk_count, gm_8016B248(), 1.0f,
-                        Player_GetDefenseRatio(fp->player_id), attrs->weight);
+                        Player_GetDefenseRatio(fp->player_idx), attrs->weight);
     fp->dmg.x1848_kb_angle = hit.kb_angle;
     fp->dmg.facing_dir_1 = fp->facing_dir;
     fp->dmg.x184c_damaged_hurtbox = 1;

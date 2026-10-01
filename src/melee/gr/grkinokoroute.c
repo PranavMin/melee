@@ -28,7 +28,7 @@
 #include <sysdolphin/baselib/psstructs.h>
 #include <sysdolphin/baselib/random.h>
 
-static struct {
+static struct yakumono_param_t {
     int x0;
     grZakoGenerator_SpawnDesc x4;
 }* yakumono_param;
@@ -39,10 +39,10 @@ typedef struct grNKr_Depths {
 
 typedef union grNKr_Flags {
     u8 flags;
-    struct {
+    struct grNKr_Flags_x0 {
         u8 b7 : 1;
         u8 b0123456 : 7;
-    };
+    } x0;
 } grNKr_Flags;
 
 static const Vec3 grNKr_803B82E8 = { 0.0f, 0.0f, 0.0f };
@@ -120,7 +120,7 @@ void grKinokoRoute_80207490(void)
     Vec3 pos;
     HSD_GObj* gobj = Ground_GetP1Fighter();
     if (gobj != NULL) {
-        ftLib_80086644(gobj, &pos);
+        ftLib_GetPos(gobj, &pos);
         Ground_801C38BC(pos.x, 20.0f + pos.y);
         Camera_8002F3AC();
     }
@@ -239,13 +239,15 @@ bool grKinokoRoute_802078E8(Ground_GObj* arg)
     return false;
 }
 
+union grKinokoRoute_802078F0_cursor {
+    Ground* gp;
+    struct grKinokoRoute_GroundVars_Entry* entry;
+};
+
 void grKinokoRoute_802078F0(Ground_GObj* gobj)
 {
     s32 i;
-    union {
-        Ground* gp;
-        struct grKinokoRoute_GroundVars_Entry* entry;
-    } cursor;
+    union grKinokoRoute_802078F0_cursor cursor;
     Vec3 pos;
     HSD_GObj* fighter;
     f32 scale;
@@ -254,7 +256,7 @@ void grKinokoRoute_802078F0(Ground_GObj* gobj)
 
     fighter = Ground_GetP1Fighter();
     if (fighter != NULL) {
-        ftLib_80086644(fighter, &pos);
+        ftLib_GetPos(fighter, &pos);
     } else {
         return;
     }
@@ -363,15 +365,15 @@ void grKinokoRoute_80207C88(Ground_GObj* gobj)
     scale = Ground_801C0498();
     fighter = Ground_GetP1Fighter();
     if (fighter != NULL) {
-        ftLib_80086644(fighter, &fighter_pos);
+        ftLib_GetPos(fighter, &fighter_pos);
     } else {
         return;
     }
     if (gp->u.kinokoroute2.phase != 2) {
-        if (ftLib_80086EC0(fighter)) {
+        if (ftLib_IsInHitstun(fighter)) {
             Stage_UnkSetVec3TCam_Offset(&cam_target);
             gp->u.kinokoroute2.cam_timer = 0x3C;
-        } else if (ftLib_8008732C(fighter)) {
+        } else if (ftLib_IsDead(fighter)) {
             Stage_UnkSetVec3TCam_Offset(&cam_target);
             gp->u.kinokoroute2.cam_timer = 0;
         } else {
@@ -564,14 +566,16 @@ bool grKinokoRoute_80208480(int arg)
     return 0;
 }
 
+struct grKinokoRoute_802084B4_gp {
+    char pad[0xDD8];
+    HSD_JObj* jobj;
+};
+
 void grKinokoRoute_802084B4(HSD_GObj* gobj)
 {
     HSD_GObj* gobj2;
     Vec3 sp_vec;
-    struct {
-        char pad[0xDD8];
-        HSD_JObj* jobj;
-    }* gp = gobj->user_data;
+    struct grKinokoRoute_802084B4_gp* gp = gobj->user_data;
 
     HSD_JObjSetFlagsAll(gp->jobj, JOBJ_HIDDEN);
 
@@ -579,7 +583,7 @@ void grKinokoRoute_802084B4(HSD_GObj* gobj)
     if (gobj2 != NULL) {
         void* gp2 = gobj2->user_data;
         if (gp2 != NULL) {
-            ((UnkFlagStruct*) ((u8*) gp2 + 0xC4))->b0 = 1;
+            ((UnkFlagStruct*) ((u8*) gp2 + 0xC4))->x0.b0 = 1;
         }
     }
 
@@ -618,8 +622,8 @@ bool grKinokoRoute_80208660(int unused, Fighter_GObj* gobj)
     Vec3 pos;
     Vec3 vel;
 
-    ftLib_80086644(gobj, &pos);
-    ftLib_80086684(gobj, &vel);
+    ftLib_GetPos(gobj, &pos);
+    ftLib_GetPrevPos(gobj, &vel);
 
     if (pos.y < 5.5F && vel.y > 5.5F) {
         f32 scale = ftLib_80086B80(gobj) / 10.0F;
@@ -643,7 +647,7 @@ void grKinokoRoute_802086EC(Vec3* arg0, f32 arg8)
     }
 }
 
-DynamicsDesc* grKinokoRoute_80208754(enum_t arg)
+lbColl_80008D30_arg1* grKinokoRoute_80208754(enum_t arg)
 {
     return NULL;
 }

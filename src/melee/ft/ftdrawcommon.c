@@ -40,7 +40,7 @@ static inline MtxPtr ftDrawCommon_8008051C_inline(HSD_GObj* gobj, Vec3* sp54,
 {
     v->x = v->y = v->z = 0.0F;
     sp54->x = sp54->y = sp54->z = 0.0F;
-    if (ftLib_80087074(gobj, sp54)) {
+    if (ftLib_GetShakeOffset(gobj, sp54)) {
         HSD_CObj* current = HSD_CObjGetCurrent();
         MtxPtr mtx = current->view_mtx;
         PSMTXIdentity(sp18);
@@ -62,7 +62,7 @@ MtxPtr ftDrawCommon_8008051C(HSD_GObj* arg1, MtxPtr arg2)
     v.x = v.y = v.z = 0.0F;
     sp54.x = sp54.y = sp54.z = 0.0F;
 
-    if (ftLib_80087074(arg1, &sp54)) {
+    if (ftLib_GetShakeOffset(arg1, &sp54)) {
         HSD_CObj* current = HSD_CObjGetCurrent();
         MtxPtr mtx = current->view_mtx;
         PSMTXIdentity(sp18);
@@ -98,7 +98,7 @@ void ftDrawCommon_800805C8(HSD_GObj* gobj, s32 arg1, bool arg2)
 
     fighter = GET_FIGHTER(gobj);
     do_invalidate = false;
-    if (fighter->x21FC_flag.b6 != 0) {
+    if (fighter->x21FC_flag.x0.b6 != 0) {
         for (i = 0; i < ARRAY_SIZE(fighter->x914); i++) {
             if (lbColl_80009F54(&fighter->x914[i], arg1, fighter->x34_scale.y))
             {
@@ -153,14 +153,14 @@ void ftDrawCommon_800805C8(HSD_GObj* gobj, s32 arg1, bool arg2)
         {
             do_invalidate = true;
         }
-        if (fighter->x221B_b0 &&
+        if (fighter->x221B.x221B_b0 &&
             lbColl_8000A78C(&fighter->shield_hit, arg1,
                             ftCommon_8007F804(fighter), fighter->cur_pos.z))
         {
             do_invalidate = true;
         }
     }
-    if (fighter->x21FC_flag.b5 != 0) {
+    if (fighter->x21FC_flag.x0.b5 != 0) {
         for (i = 0; i < (unsigned) fighter->x166C; i++) {
             if (lbColl_8000A460(&fighter->x1670[i], arg1)) {
                 do_invalidate = true;
@@ -177,15 +177,15 @@ void ftDrawCommon_800805C8(HSD_GObj* gobj, s32 arg1, bool arg2)
             }
         }
     }
-    if (fighter->x21FC_flag.b3 && (ftCo_800B395C(gobj, arg1) != 0)) {
+    if (fighter->x21FC_flag.x0.b3 && (ftCo_800B395C(gobj, arg1) != 0)) {
         do_invalidate = true;
     }
-    if (fighter->x21FC_flag.b4 && fighter->x2223_b5 &&
+    if (fighter->x21FC_flag.x0.b4 && fighter->x2223_b5 &&
         lb_80014770(&fighter->dmg.x1930.x0, arg1))
     {
         do_invalidate = true;
     }
-    if (fighter->x21FC_flag.b2 != 0) {
+    if (fighter->x21FC_flag.x0.b2 != 0) {
         itPickup* temp_r24 = &fighter->x294_itPickup;
         if (fighter->ground_or_air == 0) {
             if (lbGx_8001E2F8(&temp_r24->gr_light_offset, &fighter->cur_pos,
@@ -207,13 +207,13 @@ void ftDrawCommon_800805C8(HSD_GObj* gobj, s32 arg1, bool arg2)
             do_invalidate = true;
         }
     }
-    if (fighter->x21FC_flag.b1 && !fighter->x2227_b2 &&
+    if (fighter->x21FC_flag.x0.b1 && !fighter->x2227_b2 &&
         lbColl_8000A044(&fighter->x1064_thrownHitbox, arg1,
                         fighter->x34_scale.y))
     {
         do_invalidate = true;
     }
-    if (fighter->x21FC_flag.b0 && !fighter->x2229_b4) {
+    if (fighter->x21FC_flag.x0.b0 && !fighter->x2229_b4) {
         for (i = 0; i < ARRAY_SIZE(fighter->x1614); i++) {
             if (lbColl_8000A1A8(&fighter->x1614[i], arg1,
                                 fighter->x34_scale.y))
@@ -226,7 +226,7 @@ void ftDrawCommon_800805C8(HSD_GObj* gobj, s32 arg1, bool arg2)
         HSD_StateInvalidate(-1);
     }
 
-    if (!fighter->x21FC_flag.b7) {
+    if (!fighter->x21FC_flag.x0.b7) {
         return;
     }
 
@@ -261,7 +261,7 @@ void ftDrawCommon_800805C8(HSD_GObj* gobj, s32 arg1, bool arg2)
     ftCo_800C2600(gobj, arg1);
 }
 
-void ftDrawCommon_80080C28(HSD_GObj* gobj, int flag_index)
+void ftDrawCommon_80080C28(HSD_GObj* gobj, intptr_t flag_index)
 {
     Mtx sp70;
     Mtx sp18;
@@ -276,7 +276,7 @@ void ftDrawCommon_80080C28(HSD_GObj* gobj, int flag_index)
     PAD_STACK(4);
 
     fighter = GET_FIGHTER(gobj);
-    if (fighter->x21FC_flag.b7 != 0) {
+    if (fighter->x21FC_flag.x0.b7 != 0) {
         if (!fighter->invisible && !fighter->x221E_b5 && !fighter->x2226_b5) {
             ftCo_8009F5AC(fighter);
             if (fighter->x5AC.xC[1] != NULL) {
@@ -317,7 +317,8 @@ static inline void ftDrawCommon_80080E18_inline0(HSD_GObj* gobj,
 
     Mtx sp54;
 
-    if (fp->x21FC_flag.b7 && !fp->invisible && !fp->x221E_b5 && !fp->x2226_b5)
+    if (fp->x21FC_flag.x0.b7 && !fp->invisible && !fp->x221E_b5 &&
+        !fp->x2226_b5)
     {
         ftParts_800750C8(fp, 0, 0);
         ftParts_800750C8(fp, 1, 0);
@@ -345,7 +346,8 @@ static inline void ftDrawCommon_80080E18_inline1(HSD_GObj* gobj,
 
     fp = GET_FIGHTER(gobj);
 
-    if (fp->x21FC_flag.b7 && !fp->invisible && !fp->x221E_b5 && !fp->x2226_b5)
+    if (fp->x21FC_flag.x0.b7 && !fp->invisible && !fp->x221E_b5 &&
+        !fp->x2226_b5)
     {
         ftParts_800750C8(fp, 0, 0);
         ftParts_800750C8(fp, 1, 0);
@@ -376,11 +378,11 @@ static inline void ftDrawCommon_80080E18_inline2(HSD_GObj* gobj, Fighter* old)
     HSD_JObjSetTranslate(jobj, pos);
 }
 
-void ftDrawCommon_80080E18(HSD_GObj* gobj, int arg1)
+void ftDrawCommon_80080E18(HSD_GObj* gobj, intptr_t arg1)
 {
     Fighter* fp = gobj->user_data;
 
-    if (!fp->x221F_b3 && ftLib_80086A8C(gobj)) {
+    if (!fp->is_sleeping && ftLib_UpdateScreenVisibility(gobj)) {
         switch (Camera_80031060()) {
         case 1:
             if (fp->x2220_b7) {

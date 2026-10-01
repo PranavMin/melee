@@ -364,8 +364,8 @@ bool grGarden_8020349C(u32 unk, HSD_GObj* player, Vec3* water)
     Vec3 current;
     Vec3 previous;
     dVar3 = yakumono_param->x0;
-    ftLib_80086644(player, &current);
-    ftLib_80086684(player, &previous);
+    ftLib_GetPos(player, &current);
+    ftLib_GetPrevPos(player, &previous);
     if (current.y < dVar3) {
         if (previous.y > dVar3) {
             dVar3 = ftLib_80086B80(player) / 10.0f;
@@ -394,7 +394,7 @@ void grGarden_80203560(float param1, Vec3* vec)
     }
 }
 
-DynamicsDesc* grGarden_802035C8(enum_t arg)
+lbColl_80008D30_arg1* grGarden_802035C8(enum_t arg)
 {
     return NULL;
 }

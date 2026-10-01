@@ -111,7 +111,7 @@ HSD_GObj* it_802AB58C(Item_GObj* owner, Vec3* pos, f32 facing_dir)
     spawn.vel.x = spawn.vel.y = spawn.vel.z = 0.0f;
     spawn.x0_parent_gobj = owner;
     spawn.x4_parent_gobj2 = spawn.x0_parent_gobj;
-    spawn.x44_flag.b0 = true;
+    spawn.x44_flag.x0.b0 = true;
     spawn.x40 = Item_8026AE60();
 
     ball = Item_80268B18(&spawn);
@@ -298,7 +298,7 @@ void itNesspkthunderball_UnkMotion0_Phys(Item_GObj* gobj)
     {
         itNesspkthunderball_ShiftAngles(ip);
 
-        ftLib_800865D8(ip->xDD4_itemVar.pkthunder.xF04, &stick.x, &stick.y);
+        ftLib_GetLStick(ip->xDD4_itemVar.pkthunder.xF04, &stick.x, &stick.y);
         stick.z = 0.0f;
 
         if (ABS(stick.x) > attr->xC_PKTHUNDER_STICK_THRESHOLD ||

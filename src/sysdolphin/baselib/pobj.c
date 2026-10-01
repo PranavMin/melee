@@ -34,7 +34,7 @@ static u32 normal_buffer_size = 0;
 static HSD_VtxDescList* prev_vtxdesclist_array = NULL;
 static HSD_VtxDescList* prev_vtxdesc = NULL;
 
-static struct {
+static struct mtx_mark_t {
     void* obj;
     u32 mark;
 } mtx_mark[2];
@@ -647,7 +647,6 @@ static void get_shape_normal_xyz(HSD_ShapeSet* shape_set, int shape_id,
     }
 }
 
-/// https://decomp.me/scratch/aleJ2
 static void get_shape_nbt_xyz(HSD_ShapeSet* shape_set, int shape_id,
                               int arrayidx, float* dst)
 {

@@ -3,7 +3,9 @@
 
 #include <sysdolphin/baselib/forward.h>
 
-/* 25BC20 */ TextKerning* mnCharSel_8025BC20(TextKerning* arg0, u32 arg1);
+#include <melee/sc/types.h>
+
+/* 25BC20 */ u8* mnCharSel_8025BC20(u8* dst, u32 value);
 /* 25BD30 */ void mnCharSel_8025BD30(void);
 /* 25C020 */ void mnCharSel_8025C020(int);
 /* 25D1C4 */ void mnCharSel_8025D1C4(int, int);
@@ -29,9 +31,33 @@
 /* 2669F4 */ void mnCharSel_Scene_OnFrame(void);
 /* 266D70 */ void mnCharSel_Scene_OnExit(void*);
 
-/* Tournament kiosk (lbtourney.c): the port cursor's hand-offset float, or NULL. */
+typedef struct MnSelectChrModels {
+    /* 0x0 */ StaticModelDesc background;
+    /* 0x10 */ StaticModelDesc hand;
+    /* 0x20 */ StaticModelDesc token;
+    /* 0x30 */ StaticModelDesc menu;
+    /* 0x40 */ StaticModelDesc press_start;
+    /* 0x50 */ StaticModelDesc debug_camera;
+    /* 0x60 */ StaticModelDesc regend_menu;
+    /* 0x70 */ StaticModelDesc regend_options;
+    /* 0x80 */ StaticModelDesc door;
+} MnSelectChrModels;
+
+struct MnSelectChrDataTable {
+    /* 0x00 */ HSD_CObjDesc* cam;
+    /* 0x04 */ HSD_LightDesc* light0;
+    /* 0x08 */ HSD_LightDesc* light1;
+    /* 0x0C */ HSD_FogDesc* fog;
+    /* 0x10 */ MnSelectChrModels models;
+};
+
+
+/* Tournament kiosk (lbtourney.c / lbmodule_glue.c): the port cursor's
+ * hand-offset float, or NULL; per-port nametag and slot type; the CSS's own
+ * "everyone ready, start the fight" check. */
 f32* mnCharSel_CursorHandOffset(int port);
 u8 mnCharSel_PortNametag(int port);
 bool mnCharSel_TryStartFight(void);
 u8 mnCharSel_PortSlotType(int port);
+
 #endif

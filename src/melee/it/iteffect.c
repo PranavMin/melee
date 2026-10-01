@@ -1,7 +1,5 @@
 #include "iteffect.h"
 
-#include <math.h>
-
 #include "forward.h"
 #include "it_2725.h"
 #include "it_3F14.h"
@@ -68,7 +66,6 @@ void it_80278800(Item_GObj* item_gobj, s32 ef_id, s32 arg2, Vec3* arg3,
     item = item_gobj->user_data;
 
     // Not sure what to make of mixing this case statement with the if's below.
-    // Commenting out those cases did not affect the % match *shrug*
     switch (ef_id) {
     case 0x402:
     case 0x403:

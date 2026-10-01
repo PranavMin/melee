@@ -73,7 +73,7 @@ bool it_8029FDBC(Item_GObj* gobj)
     return (GET_ITEM(gobj)->msid != 0) ? false : true;
 }
 
-void it_8029FDDC(Item_GObj* gobj, int arg1)
+void it_8029FDDC(Item_GObj* gobj, intptr_t arg1)
 {
     s32 i;
     Item* ip;
@@ -220,12 +220,14 @@ static void loop_lb_8000BA0C_gobj_1(Item_GObj* gobj, HSD_JObj* hobj)
     }
 }
 
+struct it_802A0534_stack {
+    u32 pad;
+    Quaternion quad;
+};
+
 void it_802A0534(Item_GObj* gobj, Vec3* arg1, f32 angle)
 {
-    struct {
-        u32 pad;
-        Quaternion quad;
-    } stack;
+    struct it_802A0534_stack stack;
     Item* ip = gobj->user_data;
     itLinkBoomerangAttributes* attrs =
         ip->xC4_article_data->x4_specialAttributes;
@@ -245,7 +247,8 @@ void it_802A0534(Item_GObj* gobj, Vec3* arg1, f32 angle)
     ip->xDD4_itemVar.linkboomerang.xF74 = angle;
     norm_xF74_from_angle(ip, angle);
     ip->xB8_itemLogicTable->thrown(gobj);
-    mtx = (ftLib_80086630(ip->xDD4_itemVar.linkboomerang.xF98, ip->xDC4))->mtx;
+    mtx = (ftLib_GetPartJObj(ip->xDD4_itemVar.linkboomerang.xF98, ip->xDC4))
+              ->mtx;
     HSD_MtxGetRotation(mtx, (Vec3*) &stack.quad); // kinda sus
     it_8027429C(gobj, arg1);
     it_8026B3A8(gobj);
@@ -418,7 +421,7 @@ void it_802A0E70(Item_GObj* gobj)
     HSD_JObjReqAnimAll(hobj, 0.0f);
     HSD_JObjAnimAll(hobj);
     HSD_JObjRemoveAnimAll(hobj);
-    ip->x524_cmd.u = NULL;
+    ip->x524_cmd.x8.u = NULL;
     Item_80268E5C(gobj, 0, ITEM_ANIM_UPDATE);
 }
 
@@ -862,7 +865,7 @@ bool it_802A20E8(Item_GObj* gobj)
         }
         ip->xDD4_itemVar.linkboomerang.xDE8 = 1;
         ip->xD44_lifeTimer = ip->xD48_halfLifeTimer;
-        ftLib_800866DC(gobj2, &sp14);
+        ftLib_GetCameraBonePos(gobj2, &sp14);
         dy = it_802A20E8_inline(ip) - sp14.x;
         dx = ip->pos.y - sp14.y;
         ip->xDD4_itemVar.linkboomerang.xF74 = atan2f(dx, dy);

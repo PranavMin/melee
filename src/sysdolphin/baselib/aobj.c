@@ -4,7 +4,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include "cobj.h"
+#include "cobj.h" // IWYU pragma: keep
 #include "debug.h"
 #include "dobj.h"
 #include "fog.h"
@@ -114,10 +114,13 @@ void HSD_AObjStopAnim(HSD_AObj* aobj, void* obj, HSD_ObjUpdateFunc func)
     aobj->flags |= AOBJ_NO_ANIM;
 }
 
-#ifdef MUST_MATCH
-#pragma push
-#pragma dont_inline on
-#endif
+static inline f32 getLoopedFrame(HSD_AObj* aobj)
+{
+    f32 y = aobj->end_frame - aobj->rewind_frame;
+    f32 x = aobj->curr_frame - aobj->rewind_frame;
+    return fmodf(x, y) + aobj->rewind_frame;
+}
+
 void HSD_AObjInterpretAnim(HSD_AObj* aobj, void* obj,
                            HSD_ObjUpdateFunc update_func)
 {
@@ -137,12 +140,8 @@ void HSD_AObjInterpretAnim(HSD_AObj* aobj, void* obj,
 
     if ((aobj->flags & AOBJ_LOOP) && aobj->end_frame <= aobj->curr_frame) {
         if (aobj->rewind_frame < aobj->end_frame) {
-            f32 x, y;
-
             HSD_FObjStopAnimAll(aobj->fobj, obj, update_func, rate);
-            y = aobj->end_frame - aobj->rewind_frame;
-            x = aobj->curr_frame - aobj->rewind_frame;
-            aobj->curr_frame = fmodf(x, y) + aobj->rewind_frame;
+            aobj->curr_frame = getLoopedFrame(aobj);
             HSD_FObjReqAnimAll(aobj->fobj, aobj->curr_frame);
         } else {
             aobj->curr_frame = aobj->end_frame;
@@ -159,11 +158,8 @@ void HSD_AObjInterpretAnim(HSD_AObj* aobj, void* obj,
         HSD_FObjInterpretAnimAll(aobj->fobj, obj, update_func, rate);
     }
 
-    if (!(aobj->flags & AOBJ_LOOP) && (aobj->end_frame <= aobj->curr_frame) &&
-        aobj)
-    {
-        HSD_FObjStopAnimAll(aobj->fobj, obj, update_func, aobj->framerate);
-        aobj->flags |= AOBJ_NO_ANIM;
+    if (!(aobj->flags & AOBJ_LOOP) && aobj->end_frame <= aobj->curr_frame) {
+        HSD_AObjStopAnim(aobj, obj, update_func);
     }
 
     if (aobj->flags & AOBJ_NO_ANIM) {
@@ -172,9 +168,6 @@ void HSD_AObjInterpretAnim(HSD_AObj* aobj, void* obj,
         HSD_AObj_804D7630 += 1;
     }
 }
-#ifdef MUST_MATCH
-#pragma pop
-#endif
 
 HSD_AObj* HSD_AObjLoadDesc(HSD_AObjDesc* aobjdesc)
 {
@@ -195,15 +188,14 @@ HSD_AObj* HSD_AObjLoadDesc(HSD_AObjDesc* aobjdesc)
         fobjdesc = aobjdesc->fobjdesc;
         fobj = HSD_FObjLoadDesc(fobjdesc);
         HSD_AObjSetFObj(aobj, fobj);
-        id = aobjdesc->obj_id;
+        id = (HSD_IDKey) aobjdesc->obj_id;
         if (id != 0U) {
             HSD_Obj* hsd_obj = HSD_IDGetDataFromTable(0, id, 0);
             phi_r30 = hsd_obj;
             if (hsd_obj != NULL) {
                 ref_INC(hsd_obj);
             } else {
-                phi_r30 =
-                    (HSD_Obj*) HSD_JObjLoadJoint((void*) aobjdesc->obj_id);
+                phi_r30 = (HSD_Obj*) HSD_JObjLoadJoint(aobjdesc->obj_id);
             }
             if (aobj != NULL) {
                 if (aobj->hsd_obj != NULL) {

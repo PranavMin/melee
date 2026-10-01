@@ -407,7 +407,7 @@ bool fn_80213B1C(Ground_GObj* ground_gobj, Fighter_GObj* fighter_gobj,
 {
     Vec vec2;
     PAD_STACK(4);
-    ftLib_80086644(fighter_gobj, &vec2);
+    ftLib_GetPos(fighter_gobj, &vec2);
     vec->y = 0.0f;
     vec->z = 0.0f;
     switch (GET_GROUND(ground_gobj)->u.greens2.x18) {
@@ -438,7 +438,7 @@ static inline int get_whispy_dir(Ground_GObj* gobj, Vec3* pos)
 {
     HSD_JObj* jobj = gobj->hsd_obj;
     HSD_JObjGetTranslation(jobj, pos);
-    return ftLib_800864A8(pos, NULL) == 1.0f ? 1 : 0;
+    return ftLib_GetOpponentsDir(pos, NULL) == 1.0f ? 1 : 0;
 }
 
 void grGreens_80213C10(Ground_GObj* gobj)
@@ -506,7 +506,7 @@ void grGreens_80213C10(Ground_GObj* gobj)
             gp->u.greens2.x8 = 0;
             jobj = gobj->hsd_obj;
             HSD_JObjGetTranslation(jobj, &pos);
-            if (ftLib_800864A8(&pos, NULL) == 1.0f) {
+            if (ftLib_GetOpponentsDir(&pos, NULL) == 1.0f) {
                 dir = 1;
             } else {
                 dir = 0;
@@ -724,7 +724,7 @@ void grGreens_80214654(Ground_GObj* arg)
 void fn_80214658(Ground_GObj* gobj)
 {
     Ground* gp = GET_GROUND(gobj);
-    gp->u.greens.x0_flags.b0 = 0;
+    gp->u.greens.x0_flags.x0.b0 = 0;
     grGr_804D6AAD = 0;
 }
 
@@ -747,7 +747,7 @@ void grGreens_80214674(Ground_GObj* gobj)
     Ground_801C10B8(new_var, fn_80214658);
     gp->u.greens.xC = randrange(yakumono_param->x0_blockTimerMin,
                                 yakumono_param->x4_blockTimerMax);
-    gp->u.greens.x0_flags.b0 = 1;
+    gp->u.greens.x0_flags.x0.b0 = 1;
     grGr_804D6AAD = 1;
 }
 
@@ -760,11 +760,11 @@ void grGreens_8021479C(Ground_GObj* gobj)
 {
     Ground* gp = GET_GROUND(gobj);
     PAD_STACK(4);
-    if (!gp->u.greens.x0_flags.b0) {
+    if (!gp->u.greens.x0_flags.x0.b0) {
         grGreens_802166C4(gobj);
     }
     Ground_UpdateMapColl(gobj);
-    if (!gp->u.greens.x0_flags.b0) {
+    if (!gp->u.greens.x0_flags.x0.b0) {
         grGreens_80216C20(gobj);
     }
     lb_800115F4();
@@ -1499,11 +1499,13 @@ void grGreens_802166C4(Ground_GObj* gobj)
     }
 }
 
+struct grGreens_80216C20_local {
+    int x18;
+};
+
 void grGreens_80216C20(Ground_GObj* gobj)
 {
-    struct {
-        int x18;
-    } local;
+    struct grGreens_80216C20_local local;
     Ground* gp = GET_GROUND(gobj);
     int i;
     int j;
@@ -1559,7 +1561,7 @@ void fn_80216DE4(void* user_data, int joint_id, CollData* coll, int coll_x50,
     }
 }
 
-DynamicsDesc* grGreens_80216E64(enum_t arg)
+lbColl_80008D30_arg1* grGreens_80216E64(enum_t arg)
 {
     return NULL;
 }

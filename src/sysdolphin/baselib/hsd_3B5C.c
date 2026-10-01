@@ -153,8 +153,9 @@ extern u8 lbl_80431690[0xC];
 extern u16 lbl_8043169C[0xC];
 extern u8 lbl_804316B4[0xC];
 
-static inline s32 hsd_803B5C4C_read(s32 bits, s32 bit_count)
+s32 hsd_803B5C4C(s32 bit_count)
 {
+    s32 bits = 0;
     u8* next_byte;
 
     do {
@@ -187,14 +188,6 @@ static inline s32 hsd_803B5C4C_read(s32 bits, s32 bit_count)
     return bits;
 }
 
-s32 hsd_803B5C4C(s32 bit_count)
-{
-    return hsd_803B5C4C_read(0, bit_count);
-}
-
-#ifdef MUST_MATCH
-#pragma dont_inline on
-#endif
 s32 hsd_803B5D70(s32 ac, s32 component)
 {
     s32 value_idx;
@@ -270,13 +263,7 @@ read_huffman_code:
     }
     return 0U;
 }
-#ifdef MUST_MATCH
-#pragma dont_inline off
-#endif
 
-#ifdef MUST_MATCH
-#pragma dont_inline on
-#endif
 void hsd_803B5EA0(s32 component)
 {
     u8* base;
@@ -326,9 +313,6 @@ void hsd_803B5EA0(s32 component)
         }
     }
 }
-#ifdef MUST_MATCH
-#pragma dont_inline off
-#endif
 
 void fn_803B61B4(s32* block)
 {
@@ -489,14 +473,16 @@ typedef struct {
     u16* pixels;
 } JpegOutput;
 
+struct jpeg_store_rgb565_pixel {
+    u8 red, green, blue;
+};
+
 static inline void jpeg_store_rgb565(JpegOutput* out, s32 offset,
                                      s32 luminance, s32 cb, s32 cr)
 {
     f32 red_value, green_value, blue_value;
     u8 green;
-    struct {
-        u8 red, green, blue;
-    } pixel;
+    struct jpeg_store_rgb565_pixel pixel;
 
     red_value = (f32) ((f64) luminance + (1.402 * (f64) cr));
     pixel.red = jpeg_clamp(red_value);
@@ -611,6 +597,14 @@ static void fn_803B6820(u8* dst, s32 x, s32 y, s32 width, s32 unused_height)
         }
     }
 }
+struct hsd_803B6BE4_inline_state {
+    u8* base;
+    JpegState* work;
+    JpegQuantTables* quant_table;
+    s32 width;
+    s32 height;
+};
+
 static inline s32 hsd_803B6BE4_inline(char* src, s32 size, void* dst)
 {
     s32 cr_coeff7;
@@ -643,13 +637,7 @@ static inline s32 hsd_803B6BE4_inline(char* src, s32 size, void* dst)
     s32 luma_block;
     s32* luma;
     s32* coefficients;
-    struct {
-        u8* base;
-        JpegState* work;
-        JpegQuantTables* quant_table;
-        s32 width;
-        s32 height;
-    } state;
+    struct hsd_803B6BE4_inline_state state;
 
     state.base = (u8*) &hsd_804D2E70;
     state.work = (JpegState*) state.base;

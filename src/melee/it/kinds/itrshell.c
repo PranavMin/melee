@@ -424,7 +424,7 @@ bool itRshell_UnkMotion3_Anim(Item_GObj* gobj)
 {
     Item* ip = GET_ITEM(gobj);
     if (ip->xDD4_itemVar.rshell.xDD8 <= 0.0f) {
-        if (!ip->xDCD_flag.b5) {
+        if (!ip->xDCD_flag.x0.b5) {
             it_80275444(gobj);
         }
     } else {
@@ -458,7 +458,7 @@ bool itRshell_UnkMotion4_Anim(Item_GObj* gobj)
 {
     Item* ip = GET_ITEM(gobj);
     if (ip->xDD4_itemVar.rshell.xDD8 <= 0.0f) {
-        if (!ip->xDCD_flag.b5) {
+        if (!ip->xDCD_flag.x0.b5) {
             it_80275444(gobj);
         }
     } else {
@@ -492,18 +492,15 @@ static inline void itRshell_StopInit(Item_GObj* gobj)
     ip->xDD4_itemVar.rshell.xDE4 = 0.0f;
     ip->xDD4_itemVar.rshell.xDDC = attrs->x44;
     it_80275414(gobj);
-    itRshell_ClampVel(gobj);
-    it_80272980(gobj);
 }
 
-#ifdef MUST_MATCH
-#pragma inline_depth(8)
-#endif
 void it_8028DAE4(Item_GObj* gobj)
 {
     Item* ip = GET_ITEM(gobj);
     ip->x40_vel.y = 0.0f;
     itRshell_StopInit(gobj);
+    itRshell_ClampVel(gobj);
+    it_80272980(gobj);
     if (ip->msid == 0 || ip->msid == 1 || ip->msid == 7) {
         Item_80268E5C(gobj, 5, ITEM_ANIM_UPDATE);
     } else {
@@ -519,7 +516,7 @@ bool itRshell_UnkMotion5_Anim(Item_GObj* gobj)
     }
     ip->xDD4_itemVar.rshell.xDD4 -= 1.0f;
     if (ip->xDD4_itemVar.rshell.xDD8 <= 0.0f) {
-        if (!ip->xDCD_flag.b5) {
+        if (!ip->xDCD_flag.x0.b5) {
             it_80275444(gobj);
         }
     } else {
@@ -635,6 +632,8 @@ void it_8028E170(Item_GObj* gobj)
 {
     Item* ip = GET_ITEM(gobj);
     itRshell_StopInit(gobj);
+    itRshell_ClampVel(gobj);
+    it_80272980(gobj);
     if (ip->msid == 0 || ip->msid == 1 || ip->msid == 7) {
         Item_80268E5C(gobj, 6, ITEM_ANIM_UPDATE);
     } else {
@@ -642,31 +641,11 @@ void it_8028E170(Item_GObj* gobj)
     }
 }
 
-#ifdef MUST_MATCH
-#pragma push
-#pragma dont_inline on
-#endif
 bool itRshell_UnkMotion6_Anim(Item_GObj* gobj)
 {
-    Item* ip = gobj->user_data;
-    if (!(ip->xDD4_itemVar.rshell.xDD4 <= 0.0f)) {
-        ip->xDD4_itemVar.rshell.xDD4 -= 1.0f;
-        if (ip->xDD4_itemVar.rshell.xDD8 <= 0.0f) {
-            if (!ip->xDCD_flag.b5) {
-                it_80275444(gobj);
-            }
-        } else {
-            ip->xDD4_itemVar.rshell.xDD8 -= 1.0f;
-        }
-        if (ip->msid == 5) {
-            it_8028CFE0(gobj);
-        }
-    }
+    itRshell_UnkMotion5_Anim(gobj);
     return false;
 }
-#ifdef MUST_MATCH
-#pragma pop
-#endif
 
 void itRshell_UnkMotion6_Phys(Item_GObj* gobj)
 {

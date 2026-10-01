@@ -5,32 +5,37 @@
 typedef struct {
     /* 0x00 */ void* next;
     /* 0x04 */ s32 type;
-    /* 0x08 */ union {
+    /* 0x08 */ union particle_PerfDispItem_content {
         u8 bytes[0x80];
         char text[0x80];
-        struct {
+        struct particle_PerfDispItem_content_bars {
             s32 count;
             u32 color;
         } bars[16];
-        struct {
+        struct particle_PerfDispItem_content_gradient {
             f32 pos;
             u32 color;
         } gradient[16];
     } content;
 } PerfDispItem;
 
+#include <Runtime/platform.h>
+
 #include <math.h>
 #include <string.h>
 
-#include "cobj.h"
 #include "gobjobject.h"
 #include "mtx.h"
-#include "particle.static.h"
 #include "psappsrt.h"
 #include "psstructs.h"
 #include "random.h"
 #include <dolphin/gx.h>
 #include <dolphin/os.h>
+
+// .data
+
+/* 4D78D0 */ static u32 hsd_804D78D0;
+/* 4D78D4 */ static int (**psCallback)(HSD_Particle* part);
 
 /* 4D78D8 */ u16 hsd_804D78D8 = 0;
 /* 4D78DA */ u16 hsd_804D78DA = 0;
@@ -47,7 +52,7 @@ typedef struct {
 /* 4D78E8 */ u32 hsd_804D78E8 = 0;
 /* 4D78EC */ u32 hsd_804D78EC = 0;
 /* 4D78F0 */ HSD_CObj* psCamera = NULL;
-/* 4D78F4 */ u32 hsd_804D78F4 = 0;
+/* 4D78F4 */ HSD_SList* hsd_804D78F4 = NULL;
 static HSD_JObj* hsd_804D08E8[8];
 /* 4D0908 */ HSD_Particle* hsd_804D0908[16];
 /* 4D0948 */ u32* hsd_804D0948[65];
@@ -156,8 +161,7 @@ void psInitDataBankLoad(int bank, const int* cmdBank, const int* texBank,
     }
 }
 
-void psInitDataBankLocate(HSD_Archive* cmdBank, HSD_Archive* texBank,
-                          int* formBank)
+void psInitDataBankLocate(int* cmdBank, int* texBank, int* formBank)
 {
     s32 num;
     s32* ptr;
@@ -197,7 +201,7 @@ version40:
     base = (s32*) cmdBank + 3 - num;
     ptr = (s32*) cmdBank;
     j = 0;
-    while (j < (s32) cmdBank->header.nb_reloc) {
+    while (j < (s32) cmdBank[2]) {
         if (ptr[3] != 0) {
             ptr[3] += (s32) cmdBank;
         }
@@ -327,8 +331,7 @@ void psInitDataBank(int bank, int* cmdBank, int* texBank, u32* ref,
                     int* formBank)
 {
     if (bank < 65) {
-        psInitDataBankLocate((HSD_Archive*) cmdBank, (HSD_Archive*) texBank,
-                             formBank);
+        psInitDataBankLocate(cmdBank, texBank, formBank);
         psInitDataBankLoad(bank, cmdBank, texBank, ref, formBank);
     }
 }
@@ -498,14 +501,14 @@ HSD_Particle* psGenerateParticle0(HSD_Particle** head, int linkNo, int bank,
     return pp;
 }
 
-void hsd_80398F0C(s32 linkNo, s32 bank, s32 kind, u16 texGroup, s32 cmdList,
-                  s32 life, s32 zero, s32 gen, f32 pos_x, f32 pos_y, f32 pos_z,
-                  f32 vel_x, f32 vel_y, f32 vel_z, f32 fric, f32 rate,
-                  f32 angle3)
+void hsd_80398F0C(s32 linkNo, s32 bank, s32 kind, u16 texGroup, u8* cmdList,
+                  s32 life, s32 zero, HSD_Generator* gen, f32 pos_x, f32 pos_y,
+                  f32 pos_z, f32 vel_x, f32 vel_y, f32 vel_z, f32 fric,
+                  f32 rate, f32 angle3)
 {
-    psGenerateParticle0(0, linkNo, bank, kind, texGroup, (u8*) cmdList, life,
-                        zero, pos_x, pos_y, pos_z, vel_x, vel_y, vel_z, fric,
-                        rate, angle3, (HSD_Generator*) gen, 1);
+    psGenerateParticle0(0, linkNo, bank, kind, texGroup, cmdList, life, zero,
+                        pos_x, pos_y, pos_z, vel_x, vel_y, vel_z, fric, rate,
+                        angle3, gen, 1);
 }
 
 void hsd_80398F8C(HSD_Particle* pp, f32 angle)
@@ -3020,14 +3023,15 @@ void hsd_8039D048(void* particle)
     }
 }
 
+typedef struct {
+    HSD_JObj* jobj[8];
+    HSD_Particle* particle[146];
+    u8 pad[0x410];
+    HSD_ObjAllocData alloc_data;
+} ParticleData;
+
 void hsd_8039D0A0(HSD_Generator* gen)
 {
-    typedef struct {
-        HSD_JObj* jobj[8];
-        HSD_Particle* particle[146];
-        u8 pad[0x410];
-        HSD_ObjAllocData alloc_data;
-    } ParticleData;
     ParticleData* data = (ParticleData*) hsd_804D08E8;
     HSD_Particle* prev;
     HSD_Particle* prt;

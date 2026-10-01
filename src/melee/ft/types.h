@@ -2,10 +2,12 @@
 #define MELEE_FT_TYPES_H
 #include <Runtime/platform.h>
 
+#include <melee/ef/forward.h>
 #include <melee/ft/forward.h> // IWYU pragma: export
 #include <melee/it/forward.h>
 #include <sysdolphin/baselib/forward.h>
 
+#include <dat_macros.h>
 #include <placeholder.h>
 
 #include <dolphin/gx.h>
@@ -571,9 +573,10 @@ struct ftCommonData {
     /* +6CC */ int x6CC;
     /* +6D0 */ float x6D0;
     /* +6D4 */ int x6D4;
-    /* +6D8 */ int x6D8[1]; ///< @todo expand to actual size
-    /* +6DC */ GXColor x6DC_colorsByPlayer[4];
-    /* +6EC */ u8 x6EC[0x6F0 - 0x6EC];
+    /* +6D8 */ int x6D8;
+    /* +6DC */ GXColor
+        sub_colors[5]; ///< Array of tint colors, see #gm_SetupSubColors and
+                       ///< #Fighter_UnkInitLoad_80068914
     /* +6F0 */ float metal_armor;
     /* +6F4 */ int x6F4_unkDamage;
     /* +6F8 */ int x6F8;
@@ -699,7 +702,7 @@ struct FtPartsDesc {
 };
 
 typedef struct ftData_x20 {
-    /* +0 */ HSD_Joint** x0;
+    /* +0 */ HSD_Joint* x0; ///< The shield model
     /* +4 */ f32 x8;
 } ftData_x20;
 
@@ -708,17 +711,18 @@ typedef struct ftData_x34 {
     /* +4 */ float scale;
 } ftData_x34;
 
-typedef struct ftData_x38 {
-    int x0;
-    Vec3 x4;
-    float x10;
-} ftData_x38;
+/// An entry of #ftData::x48_items: mostly an #Article, but some fighters
+/// keep joints or their own structs in certain slots.
+/// @todo Type the other slots per fighter (Link 6, Kirby 4, Yoshi 3,
+///       Samus 4).
+typedef void* ftData_Item DAT_TYPE(Article);
 
 typedef struct ftData_x1C {
     u16 x0; ///< Fighter_Part
     u16 x2;
-    u8* x4; ///< an array of Fighter part indices
-    HSD_AnimJoint** x8;
+    u8* x4 DAT_COUNT(x2); ///< an array of Fighter part indices
+    /// @todo Count: the part animations of the fighter's kind.
+    HSD_AnimJoint** x8 DAT_EXTENT;
 } ftData_x1C;
 
 typedef struct ftData_x30 {
@@ -727,8 +731,8 @@ typedef struct ftData_x30 {
 } ftData_x30;
 
 typedef struct _ThrowFlags {
-    union {
-        struct {
+    union _ThrowFlags_x0 {
+        struct _ThrowFlags_x0_x0 {
             u8 b0 : 1;
             u8 b1 : 1;
             u8 b2 : 1;
@@ -737,9 +741,9 @@ typedef struct _ThrowFlags {
             u8 b5 : 1;
             u8 b6 : 1;
             u8 b7 : 1;
-        };
+        } x0;
         u32 flags;
-    };
+    } x0;
 } ThrowFlags;
 
 struct ftCo_DatAttrs_xBC_t {
@@ -863,9 +867,10 @@ typedef struct Fighter_WaitAnimData {
     char* x0;
     s32 x4;
     s32 x8;
-    CmdUnion* xC;
+    /// Generic commands (#Command_Execute), then #ftAction_803C0870.
+    CmdUnion* xC DAT_SCRIPT(ftAction_803C0870, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1);
     s32 x10_animCurrFlags;
-    u32 x14;
+    uintptr_t x14;
 } Fighter_WaitAnimData;
 
 struct ftData {
@@ -880,23 +885,26 @@ struct ftData {
         /* +13 */ u8 x13;
         /* +14 */ u8 x14;
     }* x8;
-    /*  +C */ Fighter_WaitAnimData* xC;
+    /// @todo Count: #ftData_Table_Unk0 of the fighter's kind.
+    /*  +C */ Fighter_WaitAnimData* xC DAT_EXTENT;
     /* +10 */ u8 (*x10)[2];
-    /* +14 */ Fighter_WaitAnimData* x14;
+    /// @todo Count: #ftData_UnkIntPairs of the fighter's kind.
+    /* +14 */ Fighter_WaitAnimData* x14 DAT_EXTENT;
     /* +18 */ u8 (*x18)[2];
-    /* +1C */ ftData_x1C** x1C;
+    /* +1C */ ftData_x1C** x1C DAT_EXTENT; ///< Up to one per #Fighter::x8B0
     /* +20 */ ftData_x20* x20;
     /* +24 */ UNK_T x24;
     /* +28 */ WaitStruct* x28;
     /* +2C */ struct ftDynamics* x2C;
     /* +30 */ ftData_x30* x30;
     /* +34 */ ftData_x34* x34;
-    /* +38 */ ftData_x38* x38;
+    /* +38 */ AbsorbDesc* x38;
     /* +3C */ struct UnkFloat6_Camera* x3C;
     /* +40 */ struct itPickup* x40;
     /* +44 */ ftData_x44_t* x44;
-    /* +48 */ UNK_T* x48_items; ///< @todo might be similar to KirbyHat? see
-                                ///< ftPr_Init_8013C360
+    /// The fighter's own items, by a per-fighter index.
+    /// @todo Count differs per fighter.
+    /* +48 */ ftData_Item* x48_items DAT_EXTENT;
     /* +4C */ FtSFX* x4C_sfx;
     /* +50 */ Vec2* x50;
     /* +54 */ int* x54;
@@ -907,8 +915,8 @@ struct ftData {
 struct FighterBone {
     /* +0 */ HSD_JObj* joint;
     /* +4 */ HSD_JObj* x4_jobj2; ///< used for interpolation
-    union {
-        struct {
+    union FighterBone_x8 {
+        struct FighterBone_x8_x0 {
             /* +8:0 */ u8 flags_b0 : 1;
             /* +8:1 */ u8 flags_b1 : 1;
             /* +8:2 */ u8 flags_b2 : 1;
@@ -925,20 +933,20 @@ struct FighterBone {
             /* +9:5 */ u8 flags2_b5 : 1;
             /* +9:6 */ u8 flags2_b6 : 1;
             /* +9:7 */ u8 flags2_b7 : 1;
-        };
-        struct {
+        } x0;
+        struct FighterBone_x8_x0_1 {
             u8 hi;
             u8 lo;
-        };
+        } x0_1;
         u16 flags8;
-    };
-    union {
-        struct {
+    } x8;
+    union FighterBone_xC {
+        struct FighterBone_xC_x0 {
             /* +C */ u8 xC;
             /* +D */ u8 xD : 7;
-        };
+        } x0;
         u32 flagsC;
-    };
+    } xC_u;
 };
 ASSERT_SIZE(struct FighterBone, 0x10);
 
@@ -991,12 +999,12 @@ struct MotionState {
 
     enum_t x4_flags;
 
-    union {
+    union MotionState_x8 {
         /// @todo Try to match without this being a @c union.
         u32 _;
-        struct {
+        struct MotionState_x8_x0 {
             u8 move_id : 8;
-            struct {
+            struct MotionState_x8_x0_x1 {
                 u8 x9_b0 : 1;
                 u8 x9_b1 : 1;
                 u8 x9_b2 : 1;
@@ -1005,11 +1013,11 @@ struct MotionState {
                 u8 x9_b5 : 1;
                 u8 x9_b6 : 1;
                 u8 x9_b7 : 1;
-            };
+            } x1;
             u8 xA;
             u8 xB;
-        };
-    };
+        } x0;
+    } x8;
 
     HSD_GObjEvent anim_cb;
     HSD_GObjEvent input_cb;
@@ -1033,7 +1041,7 @@ struct Fighter_DemoStrings {
 
 /// @todo Rename this and its members; investigate using it elsewhere.
 /* fp+2070 */ union Struct2070 {
-    /* fp+2070 */ struct {
+    /* fp+2070 */ struct Struct2070_x0 {
         /* fp+2070 */ s8 x2070;
         /* fp+2071:0 */ u8 x2071_b0_3 : 4;
         /* fp+2071:4 */ u8 x2071_b4 : 1;
@@ -1049,18 +1057,23 @@ struct Fighter_DemoStrings {
         /* fp+2072:6 */ u8 count_x1A0 : 1;
         /* fp+2072:7 */ u8 count_specials : 1;
         /* fp+2073 */ u8 x2073;
-    };
+    } x0;
     /* fp+2070 */ int x2070_int;
+};
+
+struct Struct207C {
+    f32 x;
+    s32 y;
 };
 
 /// @todo See if this should likewise be instituted for item->xD94 thru
 /// xDA4_word/xDA8_short
 /* fp+2074 */ struct Struct2074 {
-    /* fp+2074 */ Vec2 x2074_vec;
-    /* fp+207C */ S32Vec2 x207C;
-    /* fp+2084 */ union {
+    /* fp+2074 */ S32Vec2 x2074_vec;
+    /* fp+207C */ struct Struct207C x207C;
+    /* fp+2084 */ union Struct2074_x10 {
         u32 x2084;
-        struct {
+        struct Struct2074_x10_x0 {
             u8 x2084_b0 : 1;
             u8 x2084_b1 : 1;
             u8 x2084_b2 : 1;
@@ -1077,8 +1090,8 @@ struct Fighter_DemoStrings {
             u8 x2085_b5 : 1;
             u8 x2085_b6 : 1;
             u8 x2085_b7 : 1;
-        };
-    };
+        } x0;
+    } x10;
     /* fp+2088 */ u16 x2088;
 };
 
@@ -1138,7 +1151,7 @@ struct CpuFighter {
     /*  +44 */ Fighter* x44;
     /*  +48 */ UNK_T x48;
     /*  +4C */ Item* x4C;
-    /*  +50 */ u32 x50;
+    /*  +50 */ Item* x50;
     /*  +54 */ Vec2 x54;
     /*  +5C */ float x5C;
     /*  +60 */ int x60;
@@ -1217,19 +1230,6 @@ struct Fighter_x59C_t {
 };
 ASSERT_SIZE(struct Fighter_x59C_t, 0x8000);
 
-struct UnkPlBonusBits {
-    u8 x0, x1;
-    u8 x2_b0 : 1;
-    u8 x2_b1 : 1;
-    u8 x2_b2 : 1;
-    u8 x2_b3 : 1;
-    u8 x2_b4 : 1;
-    u8 x2_b5 : 1;
-    u8 x2_b6 : 1;
-    u8 x2_b7 : 1;
-    u8 x3;
-};
-
 struct ft_800898B4_t {
     /*  +0  */ int x0;
     /*  +4  */ int x4;
@@ -1304,7 +1304,8 @@ struct Fighter {
     /*    fp+0 */ HSD_GObj* gobj;
     /*    fp+4 */ FighterKind kind;
     /*    fp+8 */ s32 x8_spawnNum;
-    /*    fp+C */ u8 player_id;
+    /*    fp+C */ u8
+        player_idx; ///< Index into player_slots[Gm_Player_NumMax];
     /*   fp+10 */ FtMotionId motion_id;
     /*   fp+14 */ enum_t anim_id;
     /*   fp+18 */ s32 x18;
@@ -1361,8 +1362,8 @@ struct Fighter {
     /*  fp+588 */ HSD_LObj* x588;
     /*  fp+58C */ u32 x58C;
     /*  fp+590 */ FigaTree* x590;
-    /*  fp+594 */ union {
-        struct {
+    /*  fp+594 */ union Fighter_x594 {
+        struct Fighter_x594_x0 {
             /* fp+594:0 */ u8 x594_b0 : 1;
             /* fp+594:1 */ u8 x594_b1_loop : 1;
             /* fp+594:2 */ u8 x594_b2 : 1;
@@ -1371,41 +1372,41 @@ struct Fighter {
             /* fp+594:5 */ u8 x594_b5 : 1;
             /* fp+594:6 */ u8 x594_b6 : 1;
             /* fp+594:7 */ u8 x594_b7 : 1;
-            /* fp+596 */ struct {
+            /* fp+596 */ struct Fighter_x594_x0_x596_bits {
                 /* fp+596:0 */ u8 x0 : 7;
                 /* fp+596:7 */ u16 x7 : 3;
             } x596_bits;
-        };
-        struct {
+        } x0;
+        struct Fighter_x594_x0_1 {
             u32 x594_pad : 10;
             u32 x594_bits : 13;
             u32 x594_pad2 : 3;
             u32 x597_bits : 6; // FighterKind of this fighter's x590 FigaTree
-        };
+        } x0_1;
         /* fp+594 */ s32 x594_s32;
-    };
+    } x594;
     /*  fp+598 */ FigaTree* x598;
     /*  fp+59C */ struct Fighter_x59C_t* x59C;
     /*  fp+5A0 */ struct Fighter_x59C_t* x5A0;
-    /*  fp+5A4 */ UNK_T x5A4;
-    /*  fp+5A8 */ UNK_T x5A8;
+    /*  fp+5A4 */ uintptr_t x5A4;
+    /*  fp+5A8 */ uintptr_t x5A8;
     /*  fp+5AC */ FtPartsVis x5AC;
     /*  fp+5CC */ CostumeTObjList tobj_list;
     /*  fp+5E8 */ FighterBone* parts;
     /*  fp+5EC */ DObjList dobj_list;
-    /*  fp+5F4 */ struct {
+    /*  fp+5F4 */ struct Fighter_x5F4_arr {
         /*  fp+5F4 */ s8 prev, idx;
     } x5F4_arr[12];
-    /*  fp+60C */ void* x60C;
+    /*  fp+60C */ EF_QueuedEffect* x60C;
     /*  fp+610 */ GXColor x610_color_rgba[2];
-    /*  fp+618 */ u8 x618_player_id;
-    /*  fp+619 */ u8 x619_costume_id;
-    /*  fp+61A */ u8 x61A_controller_index;
+    /*  fp+618 */ u8 pad_port; ///< Physical controller port for this fighter
+    /*  fp+619 */ u8 costume_id;
+    /*  fp+61A */ u8 sub_color;
     /*  fp+61B */ u8 team;
     /*  fp+61C */ s8 x61C;
     /*  fp+61D */ u8 x61D;
     /*  fp+61E */ u8 filler_x61E[0x620 - 0x61E];
-    /*  fp+620 */ struct {
+    /*  fp+620 */ struct Fighter_input {
         /*  fp+620 */ Vec2 lstick[3];          ///< lstick buffer
         /*  fp+638 */ Vec2 cstick[3];          ///< cstick buffer
         /*  fp+650 */ float triggers[3];       ///< analog trigger buffer
@@ -1494,7 +1495,7 @@ struct Fighter {
         /* fp+1880 */ Vec3 x1880;
         /* fp+188C */ int x188c;
         /* fp+1890 */ int x1890;
-        /* fp+1894 */ int x1894;
+        /* fp+1894 */ HSD_GObj* x1894;
         /* fp+1898 */ float x1898;
         /* fp+189C */ float x189C_unk_num_frames;
         /* fp+18A0 */ float x18a0;
@@ -1513,7 +1514,7 @@ struct Fighter {
         /* fp+18C8 */ int x18C8;
         /* fp+18CC */ int x18CC;
         /* fp+18D0 */ int x18D0;
-        /* fp+18D4 */ UnkPlBonusBits x18d4;
+        /* fp+18D4 */ union Struct2070 x18d4;
         /* fp+18D8 */ ft_800898B4_t x18d8;
         /// Last Move Instance This Player Was Hit by
         /* fp+18EC */ u16 x18ec_instancehitby;
@@ -1572,7 +1573,7 @@ struct Fighter {
     /* fp+19C0 */ HitResult shield_hit;
     /* fp+19E4 */ HitResult reflect_hit;
     /* fp+1A08 */ HitResult absorb_hit;
-    /* fp+1A2C */ struct {
+    /* fp+1A2C */ struct Fighter_ReflectAttr {
         /* fp+1A2C */ float x1A2C_reflectHitDirection;
         /* fp+1A30 */ s32 x1A30_maxDamage;
         /* fp+1A34 */ float x1A34_damageMul;
@@ -1580,7 +1581,7 @@ struct Fighter {
         /// % damage over the maximum reflectable damage threshold
         /* fp+1A3C */ s32 x1A3C_damageOver;
     } ReflectAttr;
-    /* fp+1A40 */ struct {
+    /* fp+1A40 */ struct Fighter_AbsorbAttr {
         /* fp+1A40 */ float x1A40_absorbHitDirection;
         /// unconfirmed?
         /* fp+1A44 */ s32 x1A44_damageTaken;
@@ -1702,9 +1703,9 @@ struct Fighter {
     /* fp+21FC */ UnkFlagStruct x21FC_flag;
     /* fp+21FC */ u8 filler_x21FC[0x2200 - 0x21FD];
     /* fp+2200 */ u32 cmd_vars[4];
-    /* fp+2210 */ union {
+    /* fp+2210 */ union Fighter_x2210 {
         u32 throw_flags;
-        struct {
+        struct Fighter_x2210_x0 {
             u8 throw_flags_b0 : 1;
             u8 throw_flags_b1 : 1;
             u8 throw_flags_b2 : 1;
@@ -1713,8 +1714,8 @@ struct Fighter {
             u8 throw_flags_b5 : 1;
             u8 throw_flags_b6 : 1;
             u8 throw_flags_b7 : 1;
-        };
-    };
+        } x0;
+    } x2210;
     /* fp+2214 */ float cmd_timer;
     /* fp+2218:0 */ u8 allow_interrupt : 1;
     /* fp+2218:1 */ u8 x2218_b1 : 1;
@@ -1743,7 +1744,7 @@ struct Fighter {
     /* fp+221A:6 */ u8 x221A_b6 : 1;
     /* fp+221A:7 */ u8 x221A_b7 : 1;
 
-    /* fp+221B */ struct {
+    /* fp+221B */ struct Fighter_x221B {
         /* fp+221B:0 */ u8 x221B_b0 : 1;
         /* fp+221B:1 */ u8 x221B_b1 : 1;
         /* fp+221B:2 */ u8 x221B_b2 : 1;
@@ -1752,7 +1753,7 @@ struct Fighter {
         /* fp+221B:5 */ u8 x221B_b5 : 1;
         /* fp+221B:6 */ u8 x221B_b6 : 1;
         /* fp+221B:7 */ u8 x221B_b7 : 1;
-    };
+    } x221B;
 
     /* fp+221C:0 */ u16 x221C_b0 : 1;
     /* fp+221C:1 */ u16 x221C_b1 : 1;
@@ -1763,8 +1764,8 @@ struct Fighter {
     /* fp+221C:6 */ u16 x221C_b6 : 1;
     /* fp+221C:7 */ u16 x221C_u16_y : 3;
     /* fp+221D:2 */ u16 x221D_b2 : 1;
-    /* fp+221D:3 */ u16 x221D_b3 : 1;
-    /* fp+221D:4 */ u16 x221D_b4 : 1;
+    /* fp+221D:3 */ u16 has_prev_input : 1;
+    /* fp+221D:4 */ u16 input_disabled : 1;
     /* fp+221D:5 */ u16 x221D_b5 : 1;
     /* fp+221D:6 */ u16 x221D_b6 : 1;
     /* fp+221D:7 */ u16 x221D_b7 : 1;
@@ -1781,7 +1782,7 @@ struct Fighter {
     /* fp+221F:0 */ u8 x221F_b0 : 1;
     /* fp+221F:1 */ u8 x221F_b1 : 1;
     /* fp+221F:2 */ u8 x221F_b2 : 1;
-    /* fp+221F:3 */ u8 x221F_b3 : 1;
+    /* fp+221F:3 */ u8 is_sleeping : 1;
     /* fp+221F:4 */ u8 is_sub_fighter : 1;
     /* fp+221F:5 */ u8 x221F_b5 : 1;
     /* fp+221F:6 */ u8 x221F_b6 : 1;
@@ -1823,7 +1824,7 @@ struct Fighter {
 
     /* fp+2224:0 */ u8 x2224_b0 : 1;
     /* fp+2224:1 */ u8 x2224_b1 : 1;
-    /* fp+2224:2 */ u8 x2224_b2 : 1;
+    /* fp+2224:2 */ u8 stamina_dead : 1;
     /* fp+2224:3 */ u8 x2224_b3 : 1;
     /* fp+2224:4 */ u8 x2224_b4 : 1;
     /* fp+2224:5 */ u8 x2224_b5 : 1;
@@ -1967,22 +1968,19 @@ struct ftData_80085FD4_ret {
     /* +C */ UNK_T xC;
     /* +10:0 */ u8 x10_b0 : 1;
     /* +10:1 */ u8 x10_b1 : 1;
-    /* +14 */ u32 x14;
-};
-
-struct ArticleDynamicBones {
-    BoneDynamicsDesc array[Ft_Dynamics_NumMax];
+    /* +14 */ uintptr_t x14;
 };
 
 struct ftDynamics {
     /// @todo Very similar to #ItemDynamics.
-    struct {
+    struct ftDynamics_x0 {
         /*  +0 */ int dynamicsNum;
-        /*  +4 */ ArticleDynamicBones* ftDynamicBones;
-    };
+        /*  +4 */ BoneDynamicsTemplate* ftDynamicBones DAT_COUNT(dynamicsNum);
+    } x0;
     /*  +8 */ int x4;
-    /*  +C */ struct ftData_x38* x8;
-    /* +10 */ FigaTree*** x10;
+    /*  +C */ AbsorbDesc* x8;
+    /// Per animation, the set of each dynamic bone (0x100 for none).
+    /* +10 */ s32** x10;
 };
 
 struct KirbyHatStruct {
@@ -1991,19 +1989,115 @@ struct KirbyHatStruct {
     /*  +C */ ftDynamics* hat_dynamics[5];
 };
 
-typedef struct Kirby_Unk {
-    /*  +0 */ HSD_Joint* x0;
-    /*  +4 */ FtPartsDesc x4;
-    /*  +C */ UNK_T xC;
-    /* +10 */ ftDynamics* x10;
-    /* +14 */ UNK_T x14;
-    /* +18 */ ftDynamics* x18;
-    /* +1C */ ftDynamics* x1C;
-} Kirby_Unk;
+/// @name Kirby's copy abilities
+/// The data of `ftDataKirbyCopy*`, one per fighter he can copy. Most give
+/// him a hat (#ftKbCopyHat), the rest parts added to his own model
+/// (#ftKbCopyParts). What follows depends on the fighter.
+/// @{
 
+/// Captain Falcon, Ganondorf.
+typedef struct ftKbCopyHat {
+    /* +0 */ HSD_Joint* hat_joint;
+    /* +4 */ FtPartsDesc desc;
+} ftKbCopyHat;
+
+/// Mario, Samus, Luigi, Dr. Mario.
+typedef struct ftKbCopyHat_Item {
+    /* +0 */ ftKbCopyHat hat;
+    /* +C */ Article* item;
+} ftKbCopyHat_Item;
+
+/// Fox, Ness, Peach.
+typedef struct ftKbCopyHat_Items {
+    /* +0 */ ftKbCopyHat hat;
+    /* +C */ Article* items[2];
+} ftKbCopyHat_Items;
+
+/// Link, Sheik, Pikachu, Young Link, Pichu.
+typedef struct ftKbCopyHat_ItemsDynamics {
+    /*  +0 */ ftKbCopyHat hat;
+    /*  +C */ Article* items[2];
+    /* +14 */ ftDynamics* dynamics;
+} ftKbCopyHat_ItemsDynamics;
+
+/// Bowser.
+typedef struct ftKbCopyHat_ItemDynamics {
+    /*  +0 */ ftKbCopyHat hat;
+    /*  +C */ Article* item;
+    /* +10 */ ftDynamics* dynamics;
+} ftKbCopyHat_ItemDynamics;
+
+/// Ice Climbers.
+typedef struct ftKbCopyHat_Popo {
+    /*  +0 */ ftKbCopyHat hat;
+    /*  +C */ Article* ice;
+    /* +10 */ HSD_Joint* x10;
+} ftKbCopyHat_Popo;
+
+/// Zelda.
+typedef struct ftKbCopyHat_Dynamics {
+    /* +0 */ ftKbCopyHat hat;
+    /* +C */ ftDynamics* dynamics;
+} ftKbCopyHat_Dynamics;
+
+/// Marth, Roy.
+typedef struct ftKbCopyHat_Sword {
+    /*  +0 */ ftKbCopyHat hat;
+    /*  +C */ HSD_Joint* sword;
+    /* +10 */ ftDynamics* dynamics;
+} ftKbCopyHat_Sword;
+
+/// Yoshi.
+typedef struct ftKbCopyHat_Yoshi {
+    /*  +0 */ ftKbCopyHat hat;
+    /*  +C */ ftDynamics* dynamics;
+    /* +10 */ HSD_AnimJoint* anims[4];
+    /* +20 */ Article* egg;
+} ftKbCopyHat_Yoshi;
+
+/// Donkey Kong.
+typedef struct ftKbCopyParts {
+    /*  +0 */ FtPartsDesc parts;
+    /*  +8 */ ftData_x8_x8 x8;
+    /* +10 */ u32 part_mask;
+    /* +14 */ HSD_Joint* model;
+} ftKbCopyParts;
+
+/// Jigglypuff.
+typedef struct ftKbCopyParts_Dynamics {
+    /*  +0 */ ftKbCopyParts parts;
+    /* +18 */ ftDynamics* dynamics;
+} ftKbCopyParts_Dynamics;
+
+/// Mewtwo.
+typedef struct ftKbCopyParts_ItemDynamics {
+    /*  +0 */ ftKbCopyParts parts;
+    /* +18 */ Article* item;
+    /* +1C */ ftDynamics* dynamics;
+} ftKbCopyParts_ItemDynamics;
+
+/// Falco.
+typedef struct ftKbCopyParts_Items {
+    /*  +0 */ ftKbCopyParts parts;
+    /* +18 */ Article* items[2];
+} ftKbCopyParts_Items;
+
+/// Mr. Game & Watch.
+typedef struct ftKbCopyParts_GameWatch {
+    /*  +0 */ ftKbCopyParts parts;
+    /* +18 */ FtPartsVisLookup* vis;
+    /* +1C */ ftDynamics* dynamics;
+    /* +20 */ Article* items[2];
+} ftKbCopyParts_GameWatch;
+
+/// @}
+
+/// Kirby's copy abilities, loaded from `ftDataKirbyCopy*` as he copies
+/// each fighter.
 struct ft_80459B88_t {
-    /* +0 */ Kirby_Unk* x0;
-    /* +4 */ KirbyHatStruct* hats[Ft_Kind_Max];
+    /// By #FighterKind. The layouts differ per fighter; see
+    /// `config/GALE01/dat_symbols.txt`.
+    KirbyHatStruct* copies[Ft_Kind_Max + 1];
 };
 ASSERT_SIZE(struct ft_80459B88_t, 0x88);
 
@@ -2027,15 +2121,15 @@ typedef struct DmgLogEntry {
     /*  +4 */ FighterKind kind;
     /*  +8 */ HSD_GObj* gobj;
     /// @todo Might be a fake union
-    /*  +C */ union {
+    /*  +C */ union DmgLogEntry_xC {
         HitCapsule* hit0;
-        DynamicsDesc* unk_anim0;
-    };
+        lbColl_80008D30_arg1* unk_anim0;
+    } xC;
     /// @todo Might be a fake union
-    /* +10 */ union {
+    /* +10 */ union DmgLogEntry_x10 {
         HitCapsule* hit1;
         FighterHurtCapsule* hurt1;
-    };
+    } x10;
     /* +14 */ Vec3 pos;
     /* +20 */ float x20;
     /* +24 */ size_t size_of_xC;

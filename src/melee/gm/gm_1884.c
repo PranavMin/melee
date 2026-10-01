@@ -24,7 +24,6 @@
 #include <melee/pl/player.h>
 #include <melee/sc/types.h>
 #include <sysdolphin/baselib/aobj.h>
-#include <sysdolphin/baselib/cobj.h>
 #include <sysdolphin/baselib/dobj.h>
 #include <sysdolphin/baselib/fog.h>
 #include <sysdolphin/baselib/gobjgxlink.h>
@@ -503,9 +502,6 @@ void fn_80188EE8(HSD_GObj* gobj)
     HSD_JObjAnimAll(cursor_jobj);
 }
 
-#ifdef MUST_MATCH
-#pragma dont_inline off
-#endif
 static inline u32 gm_801891F4_GetTickRate(void)
 {
     return OS_TIMER_CLOCK;
@@ -830,9 +826,6 @@ void fn_801891F4(void)
         sub->x01 = 0;
     }
 }
-#ifdef MUST_MATCH
-#pragma dont_inline off
-#endif
 
 void fn_80189B88(void)
 {
