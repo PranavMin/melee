@@ -19,7 +19,6 @@
 #include <melee/lb/lbrelayexi.h>
 #include <melee/mn/mntourney.h>
 #include <melee/mn/mncharsel.h>
-#include <melee/mn/mnname.h>
 #include <melee/mn/mnstagesel.h>
 #include <melee/mn/types.h>
 #include <melee/pl/forward.h>
@@ -136,87 +135,6 @@ static HSD_Text* vs_text = NULL;
 static HSD_Text* vs_shadow = NULL;
 static int vs_shown_sec = -1;
 
-/* Nametag seeding: the set's two tags are written into persistent nametag
- * slots 0 and 1 (the top of the CSS tag dropdown), so each player picks
- * their own tag and the kiosk knows which entrant is on which port. Melee
- * tags are four characters, upper-case A-Z and digits only; anything else
- * in a start.gg tag is dropped, and an empty result falls back to P1/P2. The
- * kiosk memory card is the venue's, so overwriting its first two tags is
- * fine (any other tags on it stay). */
-#define LB_TOURNEY_TAG_CHARS 4
-
-static void writeNametag(int slot, const char* tag, const char* fallback)
-{
-    struct NameTagData* nd;
-    char buf[LB_TOURNEY_TAG_CHARS + 1];
-    int i;
-    int n = 0;
-
-    for (i = 0; i < TAG_LEN && tag[i] != '\0' && n < LB_TOURNEY_TAG_CHARS;
-         i++)
-    {
-        char c = tag[i];
-        if (c >= 'a' && c <= 'z') {
-            c -= 'a' - 'A';
-        }
-        if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
-            buf[n++] = c;
-        }
-    }
-    if (n == 0) {
-        while (fallback[n] != '\0') {
-            buf[n] = fallback[n];
-            n++;
-        }
-    }
-    buf[n] = '\0';
-    /* Marks the slot empty and resets its KO/stat records; namedata is then
-     * a plain NUL-terminated SIS string, as the default-name init writes. */
-    CreateNameAtIndex(slot);
-    nd = GetPersistentNameData(slot);
-    memcpy(nd->namedata, buf, n + 1);
-    /* A tagged player's in-match rumble comes from the TAG's flag, not the
-     * port's (gm_RumbleEnabledForPlayer). Start off, like the venue default;
-     * lbTourney_CSSFrame mirrors the port's pref into it every frame. */
-    nd->rumble_enabled = false;
-}
-
-/* The CSS port (0-3) that picked nametag `slot`, or -1. */
-static int portWithTag(int slot)
-{
-    int port;
-    for (port = 0; port < 4; port++) {
-        if (mnCharSel_PortNametag(port) == slot) {
-            return port;
-        }
-    }
-    return -1;
-}
-
-/* Who is who. Nametag slot 0 is entrant 1, slot 1 is entrant 2 (seeded at
- * START_SET). Rule (user, 2026-09-22): when exactly two people are playing
- * and only one has picked a tag, the other player is the other entrant.
- * tags[i] is candidate i's nametag slot; out[i] gets 1, 2 or 0 (unknown). */
-static void assignEntrants(const u8* tags, int n, u8* out)
-{
-    int i;
-    int known = 0;
-    int unknown_i = -1;
-    for (i = 0; i < n; i++) {
-        out[i] = tags[i] == 0 ? 1 : tags[i] == 1 ? 2 : 0;
-        if (out[i] != 0) {
-            known++;
-        } else {
-            unknown_i = i;
-        }
-    }
-    if (n == 2 && known == 1) {
-        out[unknown_i] = 3 - out[1 - unknown_i];
-    }
-}
-
-/* The CSS port playing as `entrant` (1 or 2) by the rule above, or -1. Only
- * human doors count; the tags of CPU doors cannot be picked anyway. */
 /* A port with a player behind it (slot HMN). The headless Dolphin loop
  * leaves its slots N/A, so the demo build treats port 1 as human. */
 static bool portIsHuman(int port)
@@ -229,35 +147,22 @@ static bool portIsHuman(int port)
     return mnCharSel_PortSlotType(port) == Gm_PKind_Human;
 }
 
+/* The CSS port playing as `entrant` (1 or 2): the L + R claim names
+ * entrant 1's port and the other human port is entrant 2; -1 while nobody
+ * has claimed. (Until 2026-09-30 picked nametags were the other source; the
+ * kiosk no longer touches nametags, see lbtourney.h.) */
 static int entrantPort(int entrant)
 {
-    u8 tags[4];
-    u8 who[4];
-    int ports[4];
-    int n = 0;
     int port;
-    if (claim_port >= 0) {
-        if (entrant == 1) {
-            return claim_port;
-        }
-        for (port = 0; port < 4; port++) {
-            if (port != claim_port && portIsHuman(port)) {
-                return port;
-            }
-        }
+    if (claim_port < 0) {
         return -1;
     }
-    for (port = 0; port < 4; port++) {
-        if (portIsHuman(port)) {
-            ports[n] = port;
-            tags[n] = mnCharSel_PortNametag(port);
-            n++;
-        }
+    if (entrant == 1) {
+        return claim_port;
     }
-    assignEntrants(tags, n, who);
-    for (port = 0; port < n; port++) {
-        if (who[port] == entrant) {
-            return ports[port];
+    for (port = 0; port < 4; port++) {
+        if (port != claim_port && portIsHuman(port)) {
+            return port;
         }
     }
     return -1;
@@ -281,8 +186,6 @@ void lbTourney_SetCurrent(const struct set_entry* set)
     memset(claim_hold, 0, sizeof(claim_hold));
     has_set = true;
     css_dirty = true;
-    writeNametag(0, cur_set.p1_tag, "P1");
-    writeNametag(1, cur_set.p2_tag, "P2");
 }
 
 void lbTourney_ClearCurrent(void)
@@ -584,7 +487,7 @@ static const char* portLabel(int entrant)
 
 /* Automatic scoring at game end (architecture.md, user 2026-09-22). The
  * vanilla GS_VS exit fills the scene's MatchEnd (outcome + per-slot standings:
- * type, nametag, stocks, percent), so lbTourney_MatchExit reads it after the
+ * type, stocks, percent), so lbTourney_MatchExit reads it after the
  * vanilla handler and decides the game there; the game is appended and sent
  * on the first CSS frame back (where the relay is polled), unless the game was
  * a handwarmer. The C-stick binds stay for corrections (undo / re-score). */
@@ -607,7 +510,6 @@ static void setAutoNote(const char* msg)
 static void autoScoreFromMatch(const struct MatchEnd* me)
 {
     int slots[GM_MAX_PLAYERS];
-    u8 tags[GM_MAX_PLAYERS];
     u8 who[2];
     int n = 0;
     int i;
@@ -627,7 +529,6 @@ static void autoScoreFromMatch(const struct MatchEnd* me)
         if (me->player_standings[i].pkind == Gm_PKind_Human) {
             if (n < GM_MAX_PLAYERS) {
                 slots[n] = i;
-                tags[n] = me->player_standings[i].x4; /* nametag slot */
             }
             n++;
         }
@@ -636,16 +537,14 @@ static void autoScoreFromMatch(const struct MatchEnd* me)
         setAutoNote("AUTO-SCORE NEEDS 2 PLAYERS");
         return;
     }
-    assignEntrants(tags, 2, who);
-    /* A port claim (L + R) beats the tags when the claimed port played. */
-    if (claim_port >= 0 && (slots[0] == claim_port) != (slots[1] == claim_port)) {
-        who[0] = slots[0] == claim_port ? 1 : 2;
-        who[1] = slots[1] == claim_port ? 1 : 2;
-    }
-    if (who[0] == 0 || who[1] == 0) {
-        setAutoNote("PICK A TAG OR HOLD L+R TO AUTO-SCORE");
+    /* Who is who: the L + R claim names entrant 1's port, and it has to be
+     * one of the two that played. */
+    if (claim_port < 0 || (slots[0] == claim_port) == (slots[1] == claim_port)) {
+        setAutoNote("HOLD L+R TO AUTO-SCORE");
         return;
     }
+    who[0] = slots[0] == claim_port ? 1 : 2;
+    who[1] = slots[1] == claim_port ? 1 : 2;
     /* Per-game character and stage (R13): the standings' ckind is the CSS
      * ckind (external id) and the stage is still in the start rules here. */
     auto_chars[who[0] - 1] = (u8) me->player_standings[slots[0]].ckind;
@@ -937,7 +836,7 @@ static void redraw(void)
                ((css_frames / 120) & 1) != 0)
     {
         /* Nobody is placed yet: every other two seconds the banner says how
-         * (a tag pick or the L + R hold by the player named first). */
+         * (the L + R hold by the player named first). */
         bannerColor(&ov_amb);
         bannerText("HOLD L+R IF YOU ARE ");
         bannerName(p1);
@@ -1116,23 +1015,9 @@ void lbTourney_CSSFrame(void)
     mnTourney_ArmAutoEnter();
     /* Venue mods (UCF, neutral spawns, striking, stealth nametag, the D-pad
      * rumble toggle, audio) are Nintendont's / Dolphin's gecko codes on the
-     * vanilla DOL; the module adds nothing there. One consequence: the venue's
-     * D-pad toggle writes the PORT pref, but Melee takes a tagged player's
-     * in-match rumble from the TAG (gm_RumbleEnabledForPlayer) and the
-     * kiosk's seeded tags start off - so the picked tags mirror their port's
-     * pref every CSS frame. */
-    {
-        int port;
-        if (has_set) {
-            (void) tuneInputs();
-        }
-        for (port = 0; port < 4; port++) {
-            int slot = mnCharSel_PortNametag(port);
-            if (slot == 0 || slot == 1) {
-                GetPersistentNameData(slot)->rumble_enabled =
-                    GetRumbleSettingOfPort(port) ? true : false;
-            }
-        }
+     * vanilla DOL; the module adds nothing there. */
+    if (has_set) {
+        (void) tuneInputs();
     }
     if (has_set) {
         if (css_ctx < 0) {
@@ -1190,16 +1075,6 @@ void lbTourney_CSSFrame(void)
             css_dirty = true;
         }
 #endif
-        /* The port <-> nametag pairing changes as players pick tags. */
-        {
-            static int shown_p1_port = -2, shown_p2_port = -2;
-            int a = portWithTag(0), b = portWithTag(1);
-            if (a != shown_p1_port || b != shown_p2_port) {
-                shown_p1_port = a;
-                shown_p2_port = b;
-                css_dirty = true;
-            }
-        }
         if (pending_cmd != 0) {
             /* Ignore inputs while a request is in flight. */
             end_hold = 0;

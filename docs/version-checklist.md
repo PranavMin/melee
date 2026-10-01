@@ -193,30 +193,28 @@ same bytes converted into `GALE01r2.ini`. Our old native ports (`lbucf.c`, `lbne
 ## 7. CSS / SSS / in-match venue features (v22-v24, native)
 
 - [ ] **D-pad UP/DOWN on the CSS toggles that port's rumble** *(venue code since 2026-09-24;
-      the v23 selection-hand shake was ours and is retired)*. The module mirrors the port's
-      rumble setting into the picked nametag's flag every CSS frame. *Once a player has picked
-      a nametag, Melee takes in-match rumble from the TAG's flag, not the port's
-      (`gm_RumbleEnabledForPlayer`); the toggle and the tag pick keep both in step. If
-      rumble "ignores" the toggle, that coupling regressed.*
+      the v23 selection-hand shake was ours and is retired)*. *A player who picks a nametag
+      gets in-match rumble from the TAG's flag, not the port's (`gm_RumbleEnabledForPlayer`);
+      that is stock Melee behaviour and the module does not touch it since v41.*
 - [ ] **Set list has the backdrop AND the menu border** around it (v25). *v22 hid
       both (barren), v23 hid the panel; the panel is now hidden only during the boot
       warm-up and shown again the moment the set list is up. If the main-menu row
       text ever shows through behind the list, that is the panel's item children -
       hide those, not the whole panel.*
-- [ ] **Nametag dropdown lists the set's two tags first** (slots 0 and 1, 4 chars,
-      A-Z/0-9 only, e.g. `MANG` / `ZAIN`; empty tag falls back to `P1`/`P2`). Picking one
-      annotates the banner with the port: `MANGO P1  0 - 0  P3 ZAIN` (optional since the
-      L + R port claim above, which wins over the tags). *Written
-      into persistent nametag slots 0/1 at START_SET (`writeNametag`), overwriting
-      whatever the kiosk card had there. Friendlies (Z) leave the tags as they were.*
+- [ ] **Nametags are stock (v41).** Open the tag dropdown on the CSS: the list is whatever
+      is on the memory card, unchanged by starting a set, and **Name Entry (adding a custom
+      tag) works** and returns to the CSS. *Until v40 the kiosk wrote the set's two tags into
+      persistent nametag slots 0/1 at START_SET and read picked tags for who-is-who; adding a
+      custom tag then crashed the CSS (user, 2026-09-30). Removed outright - the L + R claim
+      is the only who-is-who. If Name Entry crashes again, it is not the module's doing.*
 - [ ] **Auto-score at game end (v37).** Finish a game (KO or time-out) and, back on
       the CSS, the score line already counts it, `SENDING... / SCORE SENT` runs, and the
       status shows `GAME n TO <TAG>` for 5 s. *Read from the vanilla GS_VS exit data's
       MatchEnd (outcome + per-slot standings) in `lbTourney_MatchExit`, applied on the
       first CSS frame. Winner = more stocks, else less percent. Not scored, with the reason
       in the banner: LRA+Start (`NO CONTEST - NOT SCORED`), a handwarmer, not exactly
-      two human players (`AUTO-SCORE NEEDS 2 PLAYERS`), nobody identifiable (`PICK A TAG
-      OR HOLD L+R TO AUTO-SCORE`), exact tie (`TIE - SCORE IT MANUALLY`). The C-stick binds remain for
+      two human players (`AUTO-SCORE NEEDS 2 PLAYERS`), no L + R claim from one of the two
+      who played (`HOLD L+R TO AUTO-SCORE`), exact tie (`TIE - SCORE IT MANUALLY`). The C-stick binds remain for
       corrections - do NOT also flick after an auto-scored game (undo with Z + C-down if
       you did).*
 - [ ] **Characters and stage reported (v38):** after an auto-scored game the start.gg
@@ -244,10 +242,11 @@ same bytes converted into `GALE01r2.ini`. Our old native ports (`lbucf.c`, `lbne
       off in the loader: `NETWORK IS OFF IN THE LOADER` immediately. *Poll flag
       `PF_NET_JOINING` from Nintendont host build 2, whose kernel runs `NCDInit()` on its own
       thread; `TM_JOIN_FRAMES` in mntourney.c. Dolphin sends flags 0, so this is hardware-only.*
-- [ ] **Who is who, inferred (v37):** with exactly two human doors, one picked tag
-      identifies both players (the other door is the other entrant) - the score line
-      shows both port labels after one pick, and auto-score works off one tag. *Rule in
-      `assignEntrants`; CPU doors are ignored (`mnCharSel_PortSlotType`).*
+- [ ] **Who is who, inferred (v37, claim-only since v41):** with exactly two human doors,
+      the L + R hold by the player named first places both (the other human door is the
+      other entrant) - the score line shows both port labels after the one hold, and
+      auto-score works off it. *`entrantPort`; CPU doors are ignored
+      (`mnCharSel_PortSlotType`). Picked tags no longer count.*
 - [ ] **Button icons in the overlays (v35).** The set-list hint bar reads
       `(A) START  (Z) FRIENDLIES  (Y) REFRESH  (B) MENU` with real GameCube-coloured
       button discs (A green, B red, X/Y light grey, Z purple square, L/R grey squares,

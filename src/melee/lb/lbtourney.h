@@ -17,7 +17,10 @@
  *   D-pad up/down     rumble on/off for that port (venue mod, any time)
  *
  * The score is drawn along the bottom of the CSS as "MANGO P1  2 - 1  P3
- * ZAIN" (the port that picked each entrant's nametag), with a status line
+ * ZAIN" (each entrant's port, known once the player named first has held
+ * L + R; the kiosk does not touch Melee's nametags - seeding persistent
+ * slots 0/1 at START_SET crashed the CSS Name Entry screen and was removed
+ * 2026-09-30), with a status line
  * above it: SENDING... / SCORE SENT / SEND FAILED, else the next game
  * (GAME n or HANDWARMER). Inputs are ignored while a request is in flight.
  * Games carry winners only (R13). */

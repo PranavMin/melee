@@ -23,14 +23,6 @@ extern u8 mnCharSel_804D6CF2; /* post-confirm lockout */
 extern u8 mnCharSel_804D6CF6; /* CSSPendingSceneChangeKind: 1 = go fight */
 extern u8 mnCharSel_804D6CF7; /* every present player is ready */
 
-u8 mnCharSel_PortNametag(int port)
-{
-    if (port < 0 || port >= 4 || mnCharSel_804D6CB0 == NULL) {
-        return 0x78;
-    }
-    return mnCharSel_804D6CB0->vs.start.players[port].nametag;
-}
-
 u8 mnCharSel_PortSlotType(int port)
 {
     if (port < 0 || port >= 4 || mnCharSel_804D6CB0 == NULL) {

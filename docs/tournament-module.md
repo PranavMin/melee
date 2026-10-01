@@ -11,7 +11,7 @@ lazyto `docs/architecture.md` and `docs/decisions.md` R11/R12. The shifted-DOL l
 | TU | Role |
 |---|---|
 | `src/melee/mn/mntourney.c` | Tournament menu (set list, filter, confirm, error, loading), boot warm-up, `forceKioskDefaults` |
-| `src/melee/lb/lbtourney.c` | set state, CSS binds, nametag seeding + who-is-who (tags or the L+R port claim), Z+X handwarmer, auto-score from `MatchEnd`, the score in the CSS banner, overlays |
+| `src/melee/lb/lbtourney.c` | set state, CSS binds, who-is-who (the L+R port claim), Z+X handwarmer, auto-score from `MatchEnd`, the score in the CSS banner, overlays |
 | `src/melee/lb/lbrelayexi.c` | EXI driver for the relay device (channel 1 / device 0 / freq 4) |
 | `src/melee/lb/lbbuttonglyph.c` | button icons: 4 I4 32x32 shapes in SIS font slot 4 (`lbbuttonglyph_shapes.inc` from `tools/gen_button_glyphs.py`) |
 | `src/melee/lb/lbmodule_glue.c` | vanilla statics the kiosk reads (`mnCharSel_*`), `tm_bootOnLoad`, `tm_menuLightColor` |

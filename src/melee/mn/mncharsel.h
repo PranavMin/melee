@@ -53,10 +53,9 @@ struct MnSelectChrDataTable {
 
 
 /* Tournament kiosk (lbtourney.c / lbmodule_glue.c): the port cursor's
- * hand-offset float, or NULL; per-port nametag and slot type; the CSS's own
+ * hand-offset float, or NULL; per-port slot type; the CSS's own
  * "everyone ready, start the fight" check. */
 f32* mnCharSel_CursorHandOffset(int port);
-u8 mnCharSel_PortNametag(int port);
 bool mnCharSel_TryStartFight(void);
 u8 mnCharSel_PortSlotType(int port);
 
