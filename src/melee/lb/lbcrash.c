@@ -89,8 +89,18 @@ static void onError(OSError error, OSContext* ctx, ...)
             }
             sp = next;
         }
-        /* Report first, seq last: a reader that sees the new seq sees all of it. */
-        memcpy((void*) &mailbox->report, &r, sizeof(r));
+        /* Report first, seq last: a reader that sees the new seq sees all of
+         * it. Word by word, never memcpy: MSL's memcpy moves aligned blocks
+         * with 64-bit float loads/stores, which the uncached MEM2 window does
+         * not support - the first hardware report (2026-09-30) came through
+         * with only the top byte of every word intact. */
+        {
+            volatile u32* dst = (volatile u32*) &mailbox->report;
+            const u32* src = (const u32*) &r;
+            for (i = 0; i < (int) (sizeof(r) / 4); i++) {
+                dst[i] = src[i];
+            }
+        }
         sync_io();
         mailbox->seq = mailbox->seq + 1;
         sync_io();
