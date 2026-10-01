@@ -691,12 +691,33 @@ static void drawRow(f32 y, const struct set_entry* set, bool selected,
 }
 
 /* Filter pill on the left, position on the right, scroll-up cue. */
+/* Version text, top-right at the header row: the module's git hash and build
+ * date (lbmodule_version.inc, written by tools/build_module.py), then the
+ * host's build when it reports one (exi_poll_hdr.host_build, 0 = unknown:
+ * Dolphin). Small and dim: for the TO checking a dozen Wiis, not for players. */
+#include "../lb/lbmodule_version.inc"
+#define L_VER_X 578.0f /* right edge: the CSS hint's, inside the safe area */
+#define L_VER_S 0.40f
+
+static void drawVersion(void)
+{
+    char buf[48];
+    char* p = putStr(buf, TM_MODULE_VERSION);
+    if (tm_ph.host_build != 0) {
+        p = putStr(p, "  WII ");
+        putInt(p, (int) tm_ph.host_build);
+    }
+    rightAt(L_VER_X, L_HEAD_Y, L_VER_S, &c_dim2, buf);
+}
+
 static void drawHeader(void)
 {
     char buf[48];
     char* p;
     int k, last, first_row = 0, last_row = 0;
     f32 right = L_TAG_R_X + L_TAG_W - 24.0f; /* 358: the cue fits inside */
+
+    drawVersion();
 
     if (tm_filter == 0) {
         lineC(L_TEXT_X, L_HEAD_Y, L_HEAD_S, &c_dim, "#L ALL SETS #R");
@@ -1257,9 +1278,15 @@ void mnTourney_Think(HSD_GObj* gobj)
      * Not in forceKioskDefaults: that runs inside the menu-enter transition,
      * where touching the mix crashed the GX texture path (bisected v12-v15). */
     if (!tm_audio_set && tm_state == TM_LIST) {
+        /* The host's settings can keep stereo / music (exi_poll_hdr.host_opts,
+         * from the LazyTO loader menu; Dolphin sends 0 = both forced). */
         tm_audio_set = true;
-        OSSetSoundMode(0);                             /* mono */
-        gmMainLib_GetGamePrefs()->sound_balance = 100; /* music off */
+        if (!(tm_ph.host_opts & HO_STEREO)) {
+            OSSetSoundMode(0); /* mono */
+        }
+        if (!(tm_ph.host_opts & HO_MUSIC_ON)) {
+            gmMainLib_GetGamePrefs()->sound_balance = 100; /* music off */
+        }
     }
 
     switch (tm_state) {
