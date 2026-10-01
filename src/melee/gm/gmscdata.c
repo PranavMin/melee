@@ -44,11 +44,9 @@
 #include "gmvsmode.h"
 #include "types.h"
 #include <melee/if/ifprize.h>
-#include <melee/lb/lbtourney.h>
 #include <melee/mn/mncharsel.h>
 #include <melee/mn/mnmain.h>
 #include <melee/mn/mnstagesel.h>
-#include <melee/mn/mntourney.h>
 #include <melee/ty/toy.h>
 #include <melee/ty/tydisplay.h>
 #include <melee/ty/tyfigupon.h>
@@ -76,18 +74,14 @@ static GameScene scenes[] = {
         GS_MENU,
         mnMain_Scene_OnFrame,
         mnMain_Scene_OnEnter,
-        /* Tournament reporter: the vanilla row has no on_exit; this one
-         * only forgets the Tournament menu's per-scene SIS objects. */
-        mnTourney_MenuSceneExit,
+        NULL,
         NULL,
     },
     {
         GS_VS,
-        /* Tournament reporter: wrappers that draw the handwarmer overlay and
-         * then run the vanilla gm_Scene_Vs handlers. */
-        lbTourney_MatchFrame,
+        gm_Scene_Vs_OnFrame,
         gm_Scene_Vs_OnEnter,
-        lbTourney_MatchExit,
+        gm_Scene_Vs_OnExit,
         NULL,
     },
     {
@@ -120,11 +114,9 @@ static GameScene scenes[] = {
     },
     {
         GS_CSS,
-        /* Tournament reporter: wrappers that run the tournament score
-         * keybinds/overlay and then the vanilla mnCharSel handlers. */
-        lbTourney_CSSFrame,
+        mnCharSel_Scene_OnFrame,
         mnCharSel_Scene_OnEnter,
-        lbTourney_CSSExit,
+        mnCharSel_Scene_OnExit,
         NULL,
     },
     {
