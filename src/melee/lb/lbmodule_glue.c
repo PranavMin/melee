@@ -11,6 +11,7 @@
 #include <melee/gm/forward.h>
 #include <melee/gm/types.h>
 #include <melee/mn/forward.h>
+#include <melee/lb/lbcrash.h>
 #include <melee/mn/mncharsel.h>
 #include <melee/mn/types.h>
 #include <melee/pl/forward.h>
@@ -62,6 +63,10 @@ struct tm_bootLoadData {
 void tm_bootOnLoad(GameModeState* scene)
 {
     struct tm_bootLoadData* d = gm_GetGameModeStateEnterData(scene);
+    /* First module code to run: chain the crash recorder in front of Melee's
+     * error handlers (installed by gmmain's db_SetupCrashHandler before any
+     * scene), so a later crash reaches the relay's status page. */
+    lbCrash_Install();
     d->x4 = 0;
     d->x0 = 0;
     d->mode_id = GM_MENU;
