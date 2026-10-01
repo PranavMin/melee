@@ -67,6 +67,25 @@ void tm_bootOnLoad(GameModeState* scene)
     d->mode_id = GM_MENU;
 }
 
+/* Boot scene exit (gm_Mode_Boot_States[0].on_leave, hooked by pointer).
+ * Slippi Nintendont's core codeset (kernel/gecko/g_core.bin) carries the
+ * well-known "boot to CSS" code, `04 801BFA20 38600002`: it turns vanilla
+ * bootOnLeave's load of mode_id into `li r3, 2` (GM_VS), so on every Slippi
+ * Wii the game ignored tm_bootOnLoad's GM_MENU and booted to the VS CSS
+ * (first hardware run, 2026-09-30; Dolphin never applies g_core). The 04 code
+ * is rewritten every frame by the codehandler, so the instruction itself
+ * cannot be taken back. Instead: run the vanilla exit (Pikmin trophy, the
+ * memcard game-mode override, its mode request), then request GM_MENU again -
+ * gm_ChangeGameModeAfterCurrentScene only stores the pending mode, so the
+ * last request wins. */
+void bootOnLeave(GameModeState* scene);
+
+void tm_bootOnLeave(GameModeState* scene)
+{
+    bootOnLeave(scene);
+    gm_ChangeGameModeAfterCurrentScene(GM_MENU);
+}
+
 /* Menu light colour: mn_8022C010 (mnmain.c) maps the current menu kind to
  * one of five frame colours by a switch; the hijacked Trophies row maps to
  * 2 (green). The function is inlined into the light GObj's create and

@@ -49,6 +49,10 @@ ptr    0x803EB6FC mnTourney_Think           # row 3 think (vanilla mn_8022D34C)
 
 # gmboot.c: boot straight to the menu.
 branch 0x801BF948 tm_bootOnLoad             # bootOnLoad (vanilla body: 0x60 bytes)
+# gm_Mode_Boot_States (0x803DFDD8) row 0 on_leave (vanilla bootOnLeave): Slippi's
+# core codeset forces GM_VS inside bootOnLeave (04 801BFA20 = li r3,2); the
+# wrapper re-requests GM_MENU after it. See tm_bootOnLeave.
+ptr    0x803DFDE0 tm_bootOnLeave            # boot on_leave (vanilla bootOnLeave 0x801BF9A8)
 
 # mnmain.c: menu light colour by kind - the Trophies row (kind 3) maps to
 # colour 2, green. mn_8022C010 is inlined into both real users (the light
