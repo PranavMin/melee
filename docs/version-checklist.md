@@ -237,6 +237,15 @@ same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutra
       costume as 0 (`10X`): the module read `players[]` behind `gm_GetStartMeleeRules()`,
       but that is the bare 0x60-byte rules at the end of `VsSceneController` with nothing
       after it, so the read landed in zeroed .bss. Fixed in the build after `34db7bd`.*
+- [ ] **Joining the Wi-Fi is a wait, not a hang (v40):** power on with the Wi-Fi slow or
+      refused (or the router off). The loader must get past `Slippi network init...` at once,
+      Melee boots, and the Tournament screen pulses `JOINING THE WI-FI` with the pane dot
+      `NO WI-FI`; B still returns to the menu. When the join completes the search continues
+      on its own (`LOOKING FOR THE RELAY`, then the list). After 60 s without it: `THIS WII
+      COULD NOT JOIN THE WI-FI / POWER CYCLE THE WII, THEN CHECK THE ROUTER`. With Network
+      off in the loader: `NETWORK IS OFF IN THE LOADER` immediately. *Poll flag
+      `PF_NET_JOINING` from Nintendont host build 2, whose kernel runs `NCDInit()` on its own
+      thread; `TM_JOIN_FRAMES` in mntourney.c. Dolphin sends flags 0, so this is hardware-only.*
 - [ ] **Who is who, inferred (v37):** with exactly two human doors, one picked tag
       identifies both players (the other door is the other entrant) - the score line
       shows both port labels after one pick, and auto-score works off one tag. *Rule in

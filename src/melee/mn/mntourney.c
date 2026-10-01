@@ -74,6 +74,11 @@ enum mnTourney_State {
 
 #define TM_TIMEOUT_FRAMES (5 * 60)
 #define TM_SEARCH_FRAMES (10 * 60) /* beacons come every 2 s */
+/* How long to wait for the host's Wi-Fi join (PF_NET_JOINING) before calling
+ * it a failure. The kernel brings the network up on its own thread since
+ * Nintendont host build 2 (a stuck join used to hang the whole boot); a join
+ * normally takes 5-15 s, one that is still going after a minute never ends. */
+#define TM_JOIN_FRAMES (60 * 60)
 /* Largest row count that fits the 4 KB poll buffer alongside the headers. */
 #define TM_MAX_SETS                                                          \
     ((int) ((sizeof(((struct lbRelayExi_PollBuf*) 0)->payload) -             \
@@ -180,6 +185,7 @@ static u16 tm_top;    /* first visible slot (headers count as slots) */
 static u16 tm_chosen; /* tm_sets index picked on the confirm screen */
 static char tm_filter; /* 0 = all sets, else 'A'..'Z' */
 static u32 tm_timeout;
+static u16 tm_join_frames; /* frames spent on JOINING THE WI-FI this search */
 static u8 tm_retry_cmd; /* relay_cmd the error screen's A retries */
 static char tm_errmsg[MSG_LEN + 1];
 static bool tm_err_link; /* the error is ours/transport, not the relay's answer */
@@ -826,6 +832,12 @@ static bool hostNoNetwork(void)
 {
     return (tm_ph.flags & PF_NO_NETWORK) != 0;
 }
+
+/* Network is on but the host has not finished joining the Wi-Fi yet. */
+static bool hostNetJoining(void)
+{
+    return (tm_ph.flags & PF_NET_JOINING) != 0;
+}
 static bool hostNoCard(void)
 {
     return (tm_ph.flags & (PF_NO_CFG | PF_NO_SECRET)) != 0;
@@ -920,7 +932,8 @@ static void drawPane(void)
     case TM_ERROR:
         paneWhereAmI(126.0f);
         dotLabel(L_PANE_X, 236.0f, L_HINT_S, &c_red,
-                 hostNoNetwork()     ? "NO NETWORK"
+                 hostNetJoining()    ? "NO WI-FI"
+                 : hostNoNetwork()   ? "NET OFF"
                  : hostNoCard()      ? "BAD CARD"
                  : tm_ph.relay_ip == 0 ? "NOT FOUND"
                  : tm_err_link       ? "NO LINK"
@@ -952,7 +965,8 @@ static void redraw(void)
 
     switch (tm_state) {
     case TM_SEARCHING:
-        centredAt(L_LIST_CX, 214.0f, 0.62f, &c_dim, "LOOKING FOR THE RELAY");
+        centredAt(L_LIST_CX, 214.0f, 0.62f, &c_dim,
+                  hostNetJoining() ? "JOINING THE WI-FI" : "LOOKING FOR THE RELAY");
         pulse(L_LIST_CX, 250.0f, 0.62f);
         centredAt(L_HINT_CX, L_HINT_Y, L_HINT_S, &c_white, "#B MENU");
         break;
@@ -987,7 +1001,8 @@ static void redraw(void)
         break;
     case TM_ERROR:
         lineC(L_TEXT_X, 150.0f, 0.62f, &c_red,
-              hostNoNetwork()     ? "THIS WII IS NOT ONLINE"
+              hostNetJoining()    ? "THIS WII COULD NOT JOIN THE WI-FI"
+              : hostNoNetwork()   ? "NETWORK IS OFF IN THE LOADER"
               : hostNoCard()      ? "THIS CARD IS NOT SET UP"
               : tm_ph.relay_ip == 0 ? "NO RELAY FOUND"
               : tm_err_link       ? "NO LINK TO THE RELAY"
@@ -998,7 +1013,8 @@ static void redraw(void)
         lineC(L_TEXT_X, 262.0f, 0.45f, &c_dim,
               tm_count > 0 ? "YOUR LIST IS STILL HERE" : "NO SETS LOADED YET");
         lineC(L_TEXT_X, 286.0f, 0.45f, &c_dim,
-              hostNoNetwork()     ? "POWER CYCLE, OR CHECK THE LOADER'S NETWORK SETTING"
+              hostNetJoining()    ? "POWER CYCLE THE WII, THEN CHECK THE ROUTER"
+              : hostNoNetwork()   ? "TURN ON NETWORK IN THE LOADER'S SETTINGS"
               : hostNoCard()      ? "PUT TOURNAMENT.CFG WITH A SECRET ON THE SD CARD"
               : tm_ph.relay_ip == 0 ? "IS THIS SETUP ON THE RELAY'S NETWORK?"
               : errIsSecret()     ? "CHECK THE SECRET ON THIS CARD"
@@ -1039,6 +1055,7 @@ static void sendList(void)
 {
     tm_retry_cmd = CMD_LIST_SETS;
     tm_timeout = 0;
+    tm_join_frames = 0;
     if (lbRelayExi_Request(CMD_LIST_SETS, NULL, 0)) {
         tm_state = TM_LOADING;
     } else {
@@ -1074,6 +1091,7 @@ static void startList(void)
     } else {
         tm_retry_cmd = CMD_LIST_SETS;
         tm_timeout = 0;
+        tm_join_frames = 0;
         tm_state = TM_SEARCHING;
         tm_dirty = true;
     }
@@ -1089,6 +1107,7 @@ static void sendStart(void)
 
     tm_retry_cmd = CMD_START_SET;
     tm_timeout = 0;
+    tm_join_frames = 0;
     if (lbRelayExi_Request(CMD_START_SET, &req, sizeof(req))) {
         tm_state = TM_STARTING;
     } else {
@@ -1297,10 +1316,22 @@ void mnTourney_Think(HSD_GObj* gobj)
             fail("EXI ERROR");
         } else if (r > 0) {
             sendList();
+        } else if (hostNetJoining()) {
+            /* The host is still joining the Wi-Fi (its network comes up on
+             * its own thread): wait, keep B working, and only give up after
+             * TM_JOIN_FRAMES. The beacon timeout below starts once it is on. */
+            if (buttons & MenuInput_Back) {
+                sfxBack();
+                exitToMainMenu();
+                return;
+            }
+            if (++tm_join_frames > TM_JOIN_FRAMES) {
+                fail("NO WI-FI AFTER 60 SECONDS");
+            }
         } else if (hostNoNetwork()) {
-            /* The loader's Network option is off, or the Wi-Fi join failed
-             * at boot: no beacon will ever come, say so now. */
-            fail("THE WII HAS NO NETWORK CONNECTION");
+            /* The loader's Network option is off: no beacon will ever come,
+             * say so now. */
+            fail("NETWORK IS OFF IN THE LOADER");
         } else if (hostNoCard()) {
             fail((tm_ph.flags & PF_NO_CFG) ? "NO TOURNAMENT.CFG ON THE CARD"
                                            : "NO SECRET IN TOURNAMENT.CFG");
