@@ -1,6 +1,6 @@
 # LazyTO — Melee tournament module
 
-This is the [LazyTO](https://github.com/PranavMin/tournament-reporter) fork of the
+This is the [LazyTO](https://github.com/PranavMin/lazyto) fork of the
 [Melee decompilation](https://github.com/doldecomp/melee). LazyTO lets players at a Melee
 weekly pick, play and report their start.gg sets from the Wii itself.
 
@@ -27,12 +27,12 @@ Details, the file format and the hook table are in
 
 | Repo | Role |
 |---|---|
-| [tournament-reporter](https://github.com/PranavMin/tournament-reporter) | Relay on the venue's Raspberry Pi; talks to start.gg. Design docs and setup guides live here. |
+| [lazyto](https://github.com/PranavMin/lazyto) | Relay on the venue's Raspberry Pi; talks to start.gg. Design docs and setup guides live here. |
 | **melee** (this repo, branch `vanilla-module`) | `tournament.bin`, the kiosk module. |
 | [Nintendont](https://github.com/PranavMin/Nintendont) | Wii loader: relay EXI device, module loader, relay discovery. |
 | [Ishiiruka](https://github.com/PranavMin/Ishiiruka) | Slippi Dolphin with the relay forwarder, for development without a Wii. |
 
-The wire protocol is defined once in `tournament-reporter/protocol.yaml`; this repo carries a
+The wire protocol is defined once in `lazyto/protocol.yaml`; this repo carries a
 generated copy of `relay_proto.h`.
 
 ## Upstream
