@@ -66,7 +66,7 @@ static u32 css_frames; /* CSS frames with a set: paces the SEND FAILED flip */
 /* Handwarmer flag (user, 2026-09-22): the next game is a warm-up that does
  * not count toward the score. Toggled on the CSS with Z + X (any port),
  * shown on the CSS overlay, drawn in-match as a count-up clock that turns red
- * past 1:00 (design.md sec 12), and cleared automatically once that game has
+ * past 1:00 (architecture.md), and cleared automatically once that game has
  * been played, so it can never linger into a real game. The C-stick score
  * binds are unaffected: they stay the one source of score truth. */
 #define LB_TOURNEY_HANDWARMER_RED_FRAMES (60 * 60) /* 1:00 */
@@ -311,7 +311,7 @@ static int winsFor(int slot)
 }
 
 /* v1 reports winners only; per-game character data is deferred to the v2
- * GAME_END hook (design.md R13). Reading characters from CSS port order was
+ * GAME_END hook (decisions.md R13). Reading characters from CSS port order was
  * unreliable: port order need not match entrant order, and a character may
  * not be locked in when the game is reported. So games carry no character. */
 
@@ -353,7 +353,7 @@ static void sendEndSet(void)
  * (0 = Captain Falcon, so "unknown" is CHAR_UNKNOWN = 0xFF) and stage the
  * internal StKind (0 = unknown). A game scored by hand sends unknowns: the CSS
  * cannot tell which entrant sat where. The auto-score path fills them from
- * the match standings, where they are authoritative (design.md R13); the
+ * the match standings, where they are authoritative (decisions.md R13); the
  * relay omits anything it cannot map rather than rejecting the report. */
 #define CHAR_UNKNOWN 0xFF
 #define STOCKS_UNKNOWN 0xFF
@@ -582,7 +582,7 @@ static const char* portLabel(int entrant)
     return port < 0 ? "" : labels[port];
 }
 
-/* Automatic scoring at game end (design.md sec 12, user 2026-09-22). The
+/* Automatic scoring at game end (architecture.md, user 2026-09-22). The
  * vanilla GS_VS exit fills the scene's MatchEnd (outcome + per-slot standings:
  * type, nametag, stocks, percent), so lbTourney_MatchExit reads it after the
  * vanilla handler and decides the game there; the game is appended and sent

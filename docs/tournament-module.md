@@ -1,9 +1,9 @@
 # The tournament module (`tournament.bin`)
 
-Since 2026-09-24 the kiosk is not a rebuilt Melee: the venue Wiis (and Dolphin) run a **stock
+Since 2026-09-24 the kiosk is not a rebuilt Melee: the venue Wiis run a **stock
 Melee 1.02 ISO** and our code is a position-fixed blob that the loader copies into RAM at boot
 and wires in with a short list of word patches. Design rationale and history:
-`tournament-reporter/docs/design.md` sec 4.7 and R11/R12. The shifted-DOL line (v1-v39,
+lazyto `docs/architecture.md` and `docs/decisions.md` R11/R12. The shifted-DOL line (v1-v39,
 `SmashTournament-vN.iso`) is frozen at tag `shifted-dol-final` on branch `reporter`.
 
 ## What is in it
@@ -25,7 +25,7 @@ external fails the build.
 ## Build
 
 ```
-python tools/build_module.py        # -> build/GALE01/tournament.bin (~26 KB)
+python tools/build_module.py        # -> build/GALE01/tournament.bin (about 81 KB, under 100 KB)
 ```
 
 Prerequisite: a configured decomp tree (`python configure.py --non-matching` once, for the
@@ -47,10 +47,8 @@ loader must (1) find `guard_word` at `guard_addr` - stock 1.02 in RAM, nothing e
 patched; (2) require `*(0x80000034) >= load_addr + blob_len` (BootInfo arenaHi, which Melee's
 `OSInit` adopts), (3) copy the blob, (4) write the patches, (5) write `load_addr` to
 `0x80000034` so the arena stops below the module, (6) invalidate the icache over both ranges.
-Two loaders exist and must stay equivalent: Nintendont `kernel/Patch.c LoadTournamentModule`
-(reads `sd:/tournament.bin` in the full-DOL patch pass) and Ishiiruka
-`Source/Core/Core/Boot/Boot_BS2Emu.cpp LoadTournamentModule` (path from `SlippiTournamentModule`
-in `Dolphin.ini`, needs `HLE_BS2 = True`).
+The loader is Nintendont `kernel/Patch.c LoadTournamentModule` (reads `sd:/tournament.bin`
+in the full-DOL patch pass). A development setup in Dolphin uses an equivalent loader.
 
 ## Patches (`tools/module_hooks.txt`)
 

@@ -1,6 +1,8 @@
+> Superseded 2026-09-24: describes the retired shifted-DOL build; see docs/tournament-module.md.
+
 # Venue Gecko code re-addressing (Neutral Spawns)
 
-Extends the UCF re-addressing pipeline (`docs/ucf-readdressing.md`) to a second
+Extends the UCF re-addressing pipeline (`docs/history/ucf-readdressing.md`) to a second
 competitive Gecko code the venue wants: **Neutral Spawns** ("neutral starts").
 Same problem, same faithful solution: the code is authored at vanilla GALE01
 v1.02 addresses; our tournament build is a *shifted* decomp DOL, so every
@@ -154,7 +156,7 @@ Same two guarantees as UCF, now covering this code too:
 
 ## 5. Generation & build wiring
 
-Unchanged from UCF (`docs/ucf-readdressing.md` §3–4). `tools/gen_ucf_codes.py`
+Unchanged from UCF (`docs/history/ucf-readdressing.md` §3–4). `tools/gen_ucf_codes.py`
 now iterates code **groups** (UCF, Neutral Spawns); the ninja `gen_ucf` rule and
 the output path `build/GALE01/ucf_codes.gecko.txt` are the same, so a plain
 `python -m ninja` links the DOL and regenerates **both** codes with this build's
@@ -169,7 +171,7 @@ python tools/gen_ucf_codes.py --verify-ns-bin <g_mods_stealth.bin>
 
 ## 6. Applying / testing in Dolphin
 
-Same manual, explicit step as UCF (`docs/ucf-readdressing.md` §5): the generated
+Same manual, explicit step as UCF (`docs/history/ucf-readdressing.md` §5): the generated
 codes are **not** committed into `GALE01r2.ini`. To test, copy the
 `$Neutral Spawns (re-addressed)` block from section **(b)** of
 `build/GALE01/ucf_codes.gecko.txt` into `[Gecko]`, add its name under

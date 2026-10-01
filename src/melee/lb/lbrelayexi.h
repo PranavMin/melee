@@ -6,7 +6,7 @@
 #include <relay_proto.h>
 
 /* EXI request/poll helpers for the tournament relay device
- * (../tournament-reporter/docs/design.md section 6.1). The game side of the
+ * (../tournament-reporter/docs/architecture.md). The game side of the
  * fake relay EXI device that Slippi Dolphin (session 7) and Nintendont
  * (session 8) implement; those sides must match the channel/device/frequency
  * chosen here. */
@@ -64,7 +64,7 @@ const struct lbRelayExi_PollBuf* lbRelayExi_Response(void);
 bool lbRelayExi_InFlight(void);
 
 /* Read the poll image without a request in flight, for its exi_poll_hdr:
- * the host fills station and the relay address it has found (design R15:
+ * the host fills station and the relay address it has found (decisions.md R15:
  * the relay announces itself by UDP beacon; relay_ip stays 0 until one is
  * heard). False on an EXI failure, or while a request is in flight (use
  * lbRelayExi_Poll then). */

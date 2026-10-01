@@ -3,7 +3,7 @@
 linked at a fixed address against the VANILLA GALE01 v1.02 symbol map, packed
 with the hook table into build/GALE01/tournament.bin for the loaders
 (Nintendont kernel on hardware, the Ishiiruka fork in Dolphin). The game ISO
-stays stock Melee; see tournament-reporter/docs/design.md (vanilla-module
+stays stock Melee; see tournament-reporter/docs/architecture.md (vanilla-module
 architecture).
 
     python tools/build_module.py            # from the repo root

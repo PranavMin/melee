@@ -41,7 +41,7 @@ u16 mnTourney_DescIndices[1] = { 0 };
 /* Menu flow (design 6.1):
  *
  *   [Searching]   no relay known yet: the host learns the relay's address
- *                 from its UDP beacon (design R15), at most a couple of
+ *                 from its UDP beacon (decisions.md R15), at most a couple of
  *                 seconds; the first request waits for it
  *   [Loading]     LIST_SETS in flight
  *   Set list      up/down moves, left/right pages, L/R first-letter tag
@@ -463,7 +463,7 @@ static void selectSet(u32 set_id)
 }
 
 /* The relay refused us over the shared secret (relay_status ST_BAD_SECRET,
- * design R15): tournament.cfg's secret= does not match the relay's. */
+ * decisions.md R15): tournament.cfg's secret= does not match the relay's. */
 static bool errIsSecret(void)
 {
     return !tm_err_link && tm_err_status == ST_BAD_SECRET;
@@ -1424,7 +1424,7 @@ void mnTourney_Think(HSD_GObj* gobj)
 }
 
 /* Force the venue's tournament state live each time we pass the main menu, so
- * it holds regardless of what the memory-card save has (design.md R12): all
+ * it holds regardless of what the memory-card save has (decisions.md R12): all
  * characters unlocked, Stock mode, 4 stocks, 8:00, no items. Stages already
  * default to all-unlocked but we set the mask too for good measure. */
 static void forceKioskDefaults(void)

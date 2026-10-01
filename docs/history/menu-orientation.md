@@ -1,3 +1,5 @@
+> Superseded 2026-09-24: describes the retired shifted-DOL build; see docs/tournament-module.md.
+
 # Menu orientation — read-only investigation (runbook session 5)
 
 Scope: answers to the five orientation questions for the Tournament menu work

@@ -1,7 +1,9 @@
+> Superseded 2026-09-24: describes the retired shifted-DOL build; see docs/tournament-module.md.
+
 # Kiosk defaults debug — why items stay on and stages stay locked
 
 Read-only investigation (branch `reporter`, no code changed). Follows up on
-`docs/kiosk-and-defaults-investigation.md`, which had two wrong facts. Context:
+`docs/history/kiosk-and-defaults-investigation.md`, which had two wrong facts. Context:
 `forceKioskDefaults()` (src/melee/mn/mntourney.c:469-483, called from
 `mnTourney_MainMenuThink` mntourney.c:494) writes live `GameRules` +
 `GamePrefs` + the character-unlock mask at menu time. Observed after testing:

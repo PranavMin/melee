@@ -1,3 +1,5 @@
+> Superseded 2026-09-24: describes the retired shifted-DOL build; see docs/tournament-module.md.
+
 # Session 6 report — Tournament menu and CSS keybinds
 
 For the main agent. Repo `melee`, branch `reporter`, three commits on top of

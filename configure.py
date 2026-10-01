@@ -2127,7 +2127,7 @@ if args.mode == "configure":
     generate_build(config)
 
     # --- Tournament Reporter: re-address UCF Gecko codes after the DOL links ---
-    # (design.md R12 / docs/ucf-readdressing.md) After main.elf is linked, run
+    # (decisions.md R12 / docs/ucf-readdressing.md) After main.elf is linked, run
     # tools/gen_ucf_codes.py to regenerate build/<ver>/ucf_codes.gecko.txt with
     # THIS build's shifted addresses. Appended here rather than in the
     # dtk-generated tools/project.py (which stays untouched); this runs on every

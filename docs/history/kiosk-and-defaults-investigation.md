@@ -1,3 +1,5 @@
+> Superseded 2026-09-24: describes the retired shifted-DOL build; see docs/tournament-module.md.
+
 # Kiosk flow + tournament defaults — read-only investigation
 
 Scope: answers to design.md R14 (kiosk menu flow) and R12 (unlock-all +
@@ -137,7 +139,7 @@ exit block at mncharsel.c:5415-5423 (`sfxBack`, teardown, then
 **Where our hook sits.** `lbTourney_CSSFrame` (src/melee/lb/lbtourney.c:275-295)
 is the `GS_CSS` `on_frame`; it runs our overlay/keybind logic and then **calls
 `mnCharSel_Scene_OnFrame()` last** (lbtourney.c:294). Inputs are already latched
-before `on_frame` (per docs/menu-orientation.md §1), so at the top of
+before `on_frame` (per docs/history/menu-orientation.md §1), so at the top of
 `lbTourney_CSSFrame` we can read the same B press (via `gm_GetButtonsTriggered(4)`
 / `mn_8022F218`-equivalent) and, **when `has_set` is true**, set
 `gmMainLib_GetGameRules()->force_main_menu = 1;` before falling through to

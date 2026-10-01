@@ -30,7 +30,6 @@ Details, the file format and the hook table are in
 | [lazyto](https://github.com/PranavMin/lazyto) | Relay on the venue's Raspberry Pi; talks to start.gg. Design docs and setup guides live here. |
 | **melee** (this repo, branch `vanilla-module`) | `tournament.bin`, the kiosk module. |
 | [Nintendont](https://github.com/PranavMin/Nintendont) | Wii loader: relay EXI device, module loader, relay discovery. |
-| [Ishiiruka](https://github.com/PranavMin/Ishiiruka) | Slippi Dolphin with the relay forwarder, for development without a Wii. |
 
 The wire protocol is defined once in `lazyto/protocol.yaml`; this repo carries a
 generated copy of `relay_proto.h`.

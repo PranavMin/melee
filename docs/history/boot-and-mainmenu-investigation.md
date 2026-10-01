@@ -1,3 +1,5 @@
+> Superseded 2026-09-24: describes the retired shifted-DOL build; see docs/tournament-module.md.
+
 # Boot + main-menu investigation (kiosk R14)
 
 Read-only investigation for the Tournament Reporter kiosk

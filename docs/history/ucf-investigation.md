@@ -1,3 +1,5 @@
+> Superseded 2026-09-24: describes the retired shifted-DOL build; see docs/tournament-module.md.
+
 # UCF (Universal Controller Fix) — read-only investigation
 
 Scope: answers design.md **R12**'s open item — porting UCF into the melee decomp

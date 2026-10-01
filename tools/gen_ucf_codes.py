@@ -5,7 +5,7 @@
 # Background (see docs/ucf-readdressing.md + docs/venue-codes-readdressing.md and
 # docs/ucf-investigation.md):
 #   Several competitive Gecko codes we ship are authored at vanilla GALE01 v1.02
-#   addresses. Our decomp DOL is SHIFTED (design.md R11/R12), so applying the
+#   addresses. Our decomp DOL is SHIFTED (decisions.md R11/R12), so applying the
 #   vanilla-addressed hooks crashes -- the asm itself is fine, only its hardcoded
 #   absolute addresses are wrong. Two such codes are handled here:
 #     * UCF 0.8       -- 4 C2 hooks from Nintendont/kernel/gecko/g_ucf.bin.

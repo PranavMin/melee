@@ -1,8 +1,7 @@
 # New-version check-yourself list
 
-Manual checks to run **every time a new `tournament.bin` is produced** (since 2026-09-24 the
-kiosk is a module injected into stock Melee 1.02 - see `tournament-module.md`; before that,
-every `SmashTournament-vN.iso`), each one born from a bug we actually hit. If a check fails,
+Manual checks to run **every time a new `tournament.bin` is built** (the kiosk module
+injected into stock Melee 1.02, see `tournament-module.md`), each one born from a bug we actually hit. If a check fails,
 the note says the usual cause and where it's documented. **This is a living list - add a row
 whenever a new build issue bites us.** Rows tagged *(venue code)* are behaviours that now come
 from Nintendont's own codesets, not our source: verify them, but a difference there is the
@@ -115,7 +114,7 @@ Legend: each item is something *you* verify by eye on the running build.
       pulses for 10 s, then `NO RELAY FOUND` / `NO BEACON HEARD FOR 10 SECONDS` / `IS THIS
       SETUP ON THE RELAY'S NETWORK?` with a red `NOT FOUND` dot; A searches again. *The
       kernel/forwarder answer a request sent before their first beacon with a synthetic
-      "no relay found yet" (design R15); the module peeks `exi_poll_hdr.relay_ip` first
+      "no relay found yet" (decisions.md R15); the module peeks `exi_poll_hdr.relay_ip` first
       (`lbRelayExi_Peek`) and only then sends LIST_SETS. In Dolphin the beacon listener
       starts on the first EXI command, so the very first boot after launch may search for
       up to 2 s.*
@@ -125,9 +124,9 @@ Legend: each item is something *you* verify by eye on the running build.
       or `NO SETS LOADED YET`, and the pane shows `STATION n / RELAY / a.b.c.d / PORT p`
       with a red `NO LINK` dot (a relay-reported error says `THE RELAY SAID NO` / `REFUSED`;
       a shared-secret mismatch says `RELAY SECRET MISMATCH` / `CHECK THE SECRET ON THIS
-      CARD` / `BAD SECRET`, design R15).
+      CARD` / `BAD SECRET`, decisions.md R15).
       *Station/relay come from `exi_poll_hdr`, which the kernel/forwarder fill on every
-      poll; Dolphin shows station 0 (design R10). The confirm view has not been captured
+      poll; Dolphin shows station 0 (decisions.md R10). The confirm view has not been captured
       in the dev loop (no controller input there) - eyeball it on the Wii.*
 - [ ] **No missing/garbage glyphs.** *The SIS text encoder (hsd_3A64.c) maps only
       these ASCII bytes: space `" ' , - . : 0-9 A-Z a-z`. Any other ASCII byte (`+ ( ) /
@@ -138,7 +137,7 @@ Legend: each item is something *you* verify by eye on the running build.
       `"{"` (0x817B), `(` `)` = `"i"` `"j"`, `/` = `"^"`, `!` = `"I"`,
       `?` = `"H"`, `x` (times) = `"~"`, `=` = `""`, `%` = `""`.
       There are NO controller-button glyphs in the font (digits, Latin, kana, symbols,
-      24 kanji only) - icons need textures (design.md sec 12).*
+      24 kanji only) - icons need textures (architecture.md).*
 - [ ] **Round names are full and grouped:** `WINNERS QUARTER-FINAL`, `LOSERS ROUND 1`
       as headers, never `WQF`; a header appears wherever the round changes going down the
       list (the relay sorts earliest round first). In the pane a long round name wraps to
@@ -153,10 +152,10 @@ Legend: each item is something *you* verify by eye on the running build.
 Everything in this section is Nintendont's `kernel/gecko/*.bin` applied to the stock DOL
 (`g_ucf_084.bin`, `g_mods_tournament.bin`: neutral spawns, stage striking, stealth nametag
 hide, D-pad rumble toggle) - on hardware by the venue's MeleeCodes toggles, in Dolphin by the
-same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutralspawn.c`,
-`mnstagesel.c`/`ifnametag.c` edits) live only on the `reporter` branch / tag
-`shifted-dol-final`. History of why they existed: `ucf-investigation.md`,
-`ucf-readdressing.md`, `venue-codes-readdressing.md`, design.md R11/R12.
+same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutralspawn.c`) are
+still in the tree, not built into `tournament.bin`; the `mnstagesel.c`/`ifnametag.c` edits live
+only on tag `shifted-dol-final`. History of why they existed: `history/ucf-investigation.md`,
+`history/ucf-readdressing.md`, `history/venue-codes-readdressing.md`, decisions.md R11/R12.
 
 - [ ] **UCF feels right** *(venue code)*: dashback, shield-drop, wiggle-out-of-tumble behave
       like UCF 0.84.
@@ -172,7 +171,7 @@ same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutra
 
 ## 5. Relay & start.gg (before the game can list anything)
 
-- [ ] **Relay is running** and its status page loads: http://localhost:8080 .
+- [ ] **Relay is running** and its status page loads: http://localhost:29473 .
       *Restart it after a machine reboot.*
 - [ ] Status page shows **`Cache: N sets` with N > 0**, and **no "preview-id set(s)
       dropped" warning**. *0 sets or a preview warning = a start.gg pool isn't started.
@@ -341,3 +340,6 @@ same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutra
 - [ ] **Sheik's nametag vanishes during Vanish** (up-B) *(venue code - the stealth
       nametag hook in `g_mods_tournament.bin`, verified 2026-09-24)*. *Our `ifnametag.c` edit
       is retired.*
+
+History: before 2026-09-24 this list was run per `SmashTournament-vN.iso` (the retired
+shifted-DOL build).
