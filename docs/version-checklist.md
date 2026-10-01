@@ -18,18 +18,8 @@ Legend: each item is something *you* verify by eye on the running build.
       and ends with `guard: 0x8016D800 == 0x7C0802A6` and the `.bin` size (~26 KB). *A failed
       external resolution or a gecko overlap stops the build with the symbol/address named -
       never hand-edit `tournament.bin`.*
-- [ ] **Dolphin picked up the new file**: `SlippiTournamentModule` in
-      `Ishiiruka/Binary/x64/User/Config/Dolphin.ini` points at `melee/build/GALE01/tournament.bin`
-      and `HLE_BS2 = True`; restart the game after every build (the module is read at boot).
-      *An old module + new expectations looks exactly like a silent no-op.*
 - [ ] **No non-ASCII in edited C files** before building (scan for em-dash U+2014,
       smart quotes, etc.). *MWCC parses source as Shift-JIS and errors on them.*
-- [ ] **Gecko list is the generated one**: `Ishiiruka/Data/Sys/GameSettings/GALE01r2.ini` (and
-      the `Binary/x64/Sys` copy) from `Tools/make_venue_ini.py` - `[Gecko_Enabled]` =
-      `Required: Slippi Recording`, `Venue: UCF 0.84`, `Venue: Tournament Mods`, nothing else.
-      *Slippi's General Codes / Slippi Online blank the kiosk text and run the netplay CSS
-      (2026-09-24); a `[creator]` suffix on an enabled name silently disables it.* `EnableCheats
-      = True` and no per-ISO `User/GameSettings/GALE01.ini` override.
 - [ ] If any on-screen text looks jammed/wrong after an edit, **delete `build/module/*.o`** and
       rebuild. *A stale `mntourney.o` once rendered "STARTPapa VS Hotel" / wrong confirm text.*
 - [ ] For hardware: copy `tournament.bin` to the SD card root next to `tournament.cfg`; the
@@ -49,9 +39,6 @@ Legend: each item is something *you* verify by eye on the running build.
 - [ ] **No boot crash.** *v7 crashed (`Invalid read … PC=0x803442f0`, __SetSURegs) because
       it entered the set list on frame 1 before menu graphics initialized; v8 gates on
       `cooldown == 0`. See `kiosk-and-defaults-investigation.md`.*
-- [ ] **No "missing memory card" popup.** *Provide a card: Dolphin Slot A = Memory Card,
-      Slot B = the relay EXI device. This is config, not a code hack (the game edit was
-      reverted). On hardware Nintendont emulates the card.*
 - [ ] After an **END_SET upload**, it returns to the set list (doesn't sit on the CSS).
 - [ ] **B on the CSS** returns to the set list.
 - [ ] **Z on the set list** enters the CSS in friendlies mode (no set active, nothing reported).
@@ -332,12 +319,31 @@ same bytes converted into `GALE01r2.ini`. Our old native ports (`lbucf.c`, `lbne
       the six legal stages via `stage_mask`. Check what the venue's striking code shows on the
       SSS and rewrite this row to match; update the poster if the six-only claim is no longer true.
 - [ ] **Stage striking** *(venue code since 2026-09-24)*: X over a stage strikes it
-      (works, 2026-09-24). **VERIFY whether Y still restores struck stages** - the v26
-      Y-reset was ours; if the venue code has no un-strike, drop the Y row from the poster.
+      (works, 2026-09-24). **VERIFY that Z brings every struck stage back**: the venue code's
+      SSS hook tests only pad masks 0x400 (X) and 0x10 (Z); the poster says Z resets. The old
+      Y reset was ours and is gone.
       *History: v24-v26 native striking in `mnstagesel.c` (hover outline bug, Y reset).*
 - [ ] **Sheik's nametag vanishes during Vanish** (up-B) *(venue code - the stealth
       nametag hook in `g_mods_tournament.bin`, verified 2026-09-24)*. *Our `ifnametag.c` edit
       is retired.*
+
+## 8. Dolphin (development setup)
+
+Only for testing the module in the patched Slippi Dolphin kept as a separate development
+setup. Paths are inside that Dolphin's folder. Venue Wiis never run it.
+
+- [ ] **Dolphin picked up the new file**: `SlippiTournamentModule` in
+      `User/Config/Dolphin.ini` points at `melee/build/GALE01/tournament.bin`
+      and `HLE_BS2 = True`; restart the game after every build (the module is read at boot).
+      *An old module + new expectations looks exactly like a silent no-op.*
+- [ ] **Gecko list is the generated one**: `Data/Sys/GameSettings/GALE01r2.ini` (and
+      the `Binary/x64/Sys` copy) from `Tools/make_venue_ini.py` - `[Gecko_Enabled]` =
+      `Required: Slippi Recording`, `Venue: UCF 0.84`, `Venue: Tournament Mods`, nothing else.
+      *Slippi's General Codes / Slippi Online blank the kiosk text and run the netplay CSS
+      (2026-09-24); a `[creator]` suffix on an enabled name silently disables it.* `EnableCheats
+      = True` and no per-ISO `User/GameSettings/GALE01.ini` override.
+- [ ] **No "missing memory card" popup.** *Slot A = Memory Card, Slot B = the relay EXI
+      device. This is config, not a code hack (the game edit was reverted).*
 
 History: before 2026-09-24 this list was run per `SmashTournament-vN.iso` (the retired
 shifted-DOL build).
