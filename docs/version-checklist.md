@@ -152,9 +152,8 @@ Legend: each item is something *you* verify by eye on the running build.
 Everything in this section is Nintendont's `kernel/gecko/*.bin` applied to the stock DOL
 (`g_ucf_084.bin`, `g_mods_tournament.bin`: neutral spawns, stage striking, stealth nametag
 hide, D-pad rumble toggle) - on hardware by the venue's MeleeCodes toggles, in Dolphin by the
-same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutralspawn.c`) are
-still in the tree, not built into `tournament.bin`; the `mnstagesel.c`/`ifnametag.c` edits live
-only on tag `shifted-dol-final`. History of why they existed: `history/ucf-investigation.md`,
+same bytes converted into `GALE01r2.ini`. Our old native ports (`lbucf.c`, `lbneutralspawn.c`) and the
+`mnstagesel.c`/`ifnametag.c` edits live only on tag `shifted-dol-final`. History of why they existed: `history/ucf-investigation.md`,
 `history/ucf-readdressing.md`, `history/venue-codes-readdressing.md`, decisions.md R11/R12.
 
 - [ ] **UCF feels right** *(venue code)*: dashback, shield-drop, wiggle-out-of-tumble behave

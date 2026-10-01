@@ -632,8 +632,6 @@ config.libs = [
             # marks them completed so the non-matching build links them)
             Object(Matching, "melee/lb/lbrelayexi.c"),
             Object(Matching, "melee/lb/lbtourney.c"),
-            Object(Matching, "melee/lb/lbneutralspawn.c"),
-            Object(Matching, "melee/lb/lbucf.c"),
             Object(Matching, "melee/lb/lbbuttonglyph.c"),
         ],
     ),
