@@ -22,7 +22,7 @@
 #define LB_RELAY_EXI_BUF_SIZE 4096
 
 /* Largest request payload in the protocol (report_score_req/end_set_req). */
-#define LB_RELAY_EXI_MAX_PAYLOAD 28
+#define LB_RELAY_EXI_MAX_PAYLOAD 48 /* report_score_req / end_set_req, 8-byte game_result */
 
 /* What one EXI_RELAY_POLL read returns: the host-filled exi_poll_hdr (state,
  * this station's number, the relay's address - protocol.yaml), then the

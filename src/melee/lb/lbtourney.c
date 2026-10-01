@@ -100,6 +100,8 @@ static bool hw_battlefield;   /* the next stage-select enter forces Battlefield 
 /* Auto-score state (see autoScoreFromMatch below). */
 static int auto_pending;      /* entrant (1/2) who won the game just played */
 static u8 auto_chars[2];      /* external CharacterKind of entrant 1 and 2 */
+static u8 auto_stocks[2];     /* stocks left at the end, entrant 1 and 2 */
+static u8 auto_costumes[2];   /* costume (colour) index, entrant 1 and 2 */
 static u8 auto_stage;         /* internal StKind the game was played on */
 static char auto_note[40];    /* why nothing was scored, or what was */
 static u32 auto_note_frames;  /* frames left showing auto_note */
@@ -353,7 +355,14 @@ static void sendEndSet(void)
  * the match standings, where they are authoritative (design.md R13); the
  * relay omits anything it cannot map rather than rejecting the report. */
 #define CHAR_UNKNOWN 0xFF
-static void appendGame(int winner_slot, u8 p1_char, u8 p2_char, u8 stage)
+#define STOCKS_UNKNOWN 0xFF
+#define COSTUME_UNKNOWN 0xFF
+/* Stocks and costume per entrant (2026-09-30): the relay folds them into
+ * start.gg's per-game score as (costume + 1) * 100 + stocks, the Replay
+ * Reporter for Slippi convention, so the set page shows colour and stocks.
+ * Unknown (hand-scored) games send 0xFF and get no score. */
+static void appendGame(int winner_slot, u8 p1_char, u8 p2_char, u8 stage,
+                       const u8* stocks, const u8* costumes)
 {
     struct game_result* game;
     if (game_count >= MAX_GAMES) {
@@ -364,6 +373,10 @@ static void appendGame(int winner_slot, u8 p1_char, u8 p2_char, u8 stage)
     game->p1_char = p1_char;
     game->p2_char = p2_char;
     game->stage = stage;
+    game->p1_stocks = stocks ? stocks[0] : STOCKS_UNKNOWN;
+    game->p2_stocks = stocks ? stocks[1] : STOCKS_UNKNOWN;
+    game->p1_costume = costumes ? costumes[0] : COSTUME_UNKNOWN;
+    game->p2_costume = costumes ? costumes[1] : COSTUME_UNKNOWN;
     game_count++;
     sendReport();
 }
@@ -496,9 +509,9 @@ static void handleInputs(void)
     /* Score / undo fire once per flick: on the edge into a new direction. */
     if (cdir != prev_cdir) {
         if (cdir == CDIR_LEFT) {
-            appendGame(leftEntrant(), CHAR_UNKNOWN, CHAR_UNKNOWN, 0);
+            appendGame(leftEntrant(), CHAR_UNKNOWN, CHAR_UNKNOWN, 0, NULL, NULL);
         } else if (cdir == CDIR_RIGHT) {
-            appendGame(3 - leftEntrant(), CHAR_UNKNOWN, CHAR_UNKNOWN, 0);
+            appendGame(3 - leftEntrant(), CHAR_UNKNOWN, CHAR_UNKNOWN, 0, NULL, NULL);
         } else if (cdir == CDIR_DOWN) {
             undoGame();
         }
@@ -636,6 +649,17 @@ static void autoScoreFromMatch(const struct MatchEnd* me)
      * ckind (external id) and the stage is still in the start rules here. */
     auto_chars[who[0] - 1] = (u8) me->player_standings[slots[0]].ckind;
     auto_chars[who[1] - 1] = (u8) me->player_standings[slots[1]].ckind;
+    auto_stocks[who[0] - 1] = me->player_standings[slots[0]].stocks;
+    auto_stocks[who[1] - 1] = me->player_standings[slots[1]].stocks;
+    /* The costume is not in the standings; the per-player init data that
+     * follows the start rules (StartMeleeData.players, by slot) still holds
+     * what the CSS chose. */
+    {
+        const struct StartMeleeData* sd =
+            (const struct StartMeleeData*) gm_GetStartMeleeRules();
+        auto_costumes[who[0] - 1] = sd->players[slots[0]].color;
+        auto_costumes[who[1] - 1] = sd->players[slots[1]].color;
+    }
     auto_stage = (u8) gm_GetStartMeleeRules()->stkind;
     /* Stock mode: the survivor; on time-out more stocks, then less damage. */
     {
@@ -1129,7 +1153,7 @@ void lbTourney_CSSFrame(void)
                 const char* src =
                     auto_pending == 1 ? cur_set.p1_tag : cur_set.p2_tag;
                 appendGame(auto_pending, auto_chars[0], auto_chars[1],
-                           auto_stage);
+                           auto_stage, auto_stocks, auto_costumes);
                 memcpy(tag, src, TAG_LEN);
                 tag[TAG_LEN] = '\0';
                 /* "GAME 3 TO MANGO" */
