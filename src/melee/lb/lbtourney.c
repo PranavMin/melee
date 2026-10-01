@@ -23,6 +23,7 @@
 #include <melee/mn/mnstagesel.h>
 #include <melee/mn/types.h>
 #include <melee/pl/forward.h>
+#include <melee/pl/player.h>
 #include <sysdolphin/baselib/controller.h>
 #include <sysdolphin/baselib/sislib.h>
 
@@ -651,15 +652,15 @@ static void autoScoreFromMatch(const struct MatchEnd* me)
     auto_chars[who[1] - 1] = (u8) me->player_standings[slots[1]].ckind;
     auto_stocks[who[0] - 1] = me->player_standings[slots[0]].stocks;
     auto_stocks[who[1] - 1] = me->player_standings[slots[1]].stocks;
-    /* The costume is not in the standings; the per-player init data that
-     * follows the start rules (StartMeleeData.players, by slot) still holds
-     * what the CSS chose. */
-    {
-        const struct StartMeleeData* sd =
-            (const struct StartMeleeData*) gm_GetStartMeleeRules();
-        auto_costumes[who[0] - 1] = sd->players[slots[0]].color;
-        auto_costumes[who[1] - 1] = sd->players[slots[1]].color;
-    }
+    /* The costume is not in the standings. It comes from the fighter data the
+     * game spawned with (pl's player_slots, reset only by the next match's
+     * Player_InitAllPlayers), so it is still right here at GS_VS exit. NOT
+     * from gm_GetStartMeleeRules(): that is the bare 0x60-byte rules at the
+     * end of VsSceneController, nothing follows it - a StartMeleeData cast
+     * read past the controller into zeroed .bss and reported every costume
+     * as 0 on the first Wii set (2026-09-30). */
+    auto_costumes[who[0] - 1] = (u8) Player_GetCostumeId(slots[0]);
+    auto_costumes[who[1] - 1] = (u8) Player_GetCostumeId(slots[1]);
     auto_stage = (u8) gm_GetStartMeleeRules()->stkind;
     /* Stock mode: the survivor; on time-out more stocks, then less damage. */
     {

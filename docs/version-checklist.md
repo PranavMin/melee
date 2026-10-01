@@ -228,6 +228,15 @@ same bytes converted into `GALE01r2.ini`. Our native ports (`lbucf.c`, `lbneutra
       byte (wire layout unchanged, header re-synced from protocol.yaml). A hand-scored
       correction sends zeros = winner only; the relay omits unmapped values rather than
       failing.*
+- [ ] **Stocks and costume reported (v39):** after an auto-scored game the start.gg set
+      page shows each entrant's stock icons in the right colour - a non-default costume
+      must NOT show as the default, and the score field reads `(costume + 1) * 100 +
+      stocks` (e.g. `203` = third colour, 3 stocks). *Stocks from
+      `MatchEnd.player_standings[].stocks`; costume from `Player_GetCostumeId(slot)`, the
+      fighter data the game spawned with. The first Wii set (2026-09-30) reported every
+      costume as 0 (`10X`): the module read `players[]` behind `gm_GetStartMeleeRules()`,
+      but that is the bare 0x60-byte rules at the end of `VsSceneController` with nothing
+      after it, so the read landed in zeroed .bss. Fixed in the build after `34db7bd`.*
 - [ ] **Who is who, inferred (v37):** with exactly two human doors, one picked tag
       identifies both players (the other door is the other entrant) - the score line
       shows both port labels after one pick, and auto-score works off one tag. *Rule in
