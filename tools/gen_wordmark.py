@@ -1,4 +1,4 @@
-"""Generate the kiosk's "TOURNAMENT" wordmark texture for the module.
+"""Generate the kiosk's "LazyTO" wordmark texture for the module.
 
 tools/gen_wordmark.ps1 renders the text with GDI+ (white, sheared, with a
 baked-in dark drop shadow) to W*H {intensity, alpha} byte pairs; this script
@@ -22,7 +22,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--font", default="Franklin Gothic Medium")
     ap.add_argument("--shear", default="0.20")
-    ap.add_argument("--text", default="TOURNAMENT")
+    ap.add_argument("--text", default="LazyTO")
     args = ap.parse_args()
 
     build = os.path.join(ROOT, "build")

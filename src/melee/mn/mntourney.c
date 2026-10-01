@@ -800,6 +800,17 @@ static void panePill(f32 y, int best_of)
     lineC(L_PANE_X + 7.0f, y, 0.55f, &c_white, buf);
 }
 
+/* The host's own verdict (exi_poll_hdr.flags): a card or network problem it
+ * knows about before any beacon could arrive. 0 on Dolphin. */
+static bool hostNoNetwork(void)
+{
+    return (tm_ph.flags & PF_NO_NETWORK) != 0;
+}
+static bool hostNoCard(void)
+{
+    return (tm_ph.flags & (PF_NO_CFG | PF_NO_SECRET)) != 0;
+}
+
 /* STATION n / RELAY / a.b.c.d from the poll header the host fills. */
 static void paneWhereAmI(f32 y)
 {
@@ -889,7 +900,9 @@ static void drawPane(void)
     case TM_ERROR:
         paneWhereAmI(126.0f);
         dotLabel(L_PANE_X, 236.0f, L_HINT_S, &c_red,
-                 tm_ph.relay_ip == 0 ? "NOT FOUND"
+                 hostNoNetwork()     ? "NO NETWORK"
+                 : hostNoCard()      ? "BAD CARD"
+                 : tm_ph.relay_ip == 0 ? "NOT FOUND"
                  : tm_err_link       ? "NO LINK"
                  : errIsSecret()     ? "BAD SECRET"
                                      : "REFUSED");
@@ -952,7 +965,9 @@ static void redraw(void)
         break;
     case TM_ERROR:
         lineC(L_TEXT_X, 150.0f, 0.62f, &c_red,
-              tm_ph.relay_ip == 0 ? "NO RELAY FOUND"
+              hostNoNetwork()     ? "THIS WII IS NOT ONLINE"
+              : hostNoCard()      ? "THIS CARD IS NOT SET UP"
+              : tm_ph.relay_ip == 0 ? "NO RELAY FOUND"
               : tm_err_link       ? "NO LINK TO THE RELAY"
               : errIsSecret()     ? "RELAY SECRET MISMATCH"
                                   : "THE RELAY SAID NO");
@@ -961,7 +976,9 @@ static void redraw(void)
         lineC(L_TEXT_X, 262.0f, 0.45f, &c_dim,
               tm_count > 0 ? "YOUR LIST IS STILL HERE" : "NO SETS LOADED YET");
         lineC(L_TEXT_X, 286.0f, 0.45f, &c_dim,
-              tm_ph.relay_ip == 0 ? "IS THIS SETUP ON THE RELAY'S NETWORK?"
+              hostNoNetwork()     ? "POWER CYCLE, OR CHECK THE LOADER'S NETWORK SETTING"
+              : hostNoCard()      ? "PUT TOURNAMENT.CFG WITH A SECRET ON THE SD CARD"
+              : tm_ph.relay_ip == 0 ? "IS THIS SETUP ON THE RELAY'S NETWORK?"
               : errIsSecret()     ? "CHECK THE SECRET ON THIS CARD"
                                   : "TELL THE TO IF THIS REPEATS");
         centredAt(L_HINT_CX, L_HINT_Y, L_HINT_S, &c_white,
@@ -1252,6 +1269,13 @@ void mnTourney_Think(HSD_GObj* gobj)
             fail("EXI ERROR");
         } else if (r > 0) {
             sendList();
+        } else if (hostNoNetwork()) {
+            /* The loader's Network option is off, or the Wi-Fi join failed
+             * at boot: no beacon will ever come, say so now. */
+            fail("THE WII HAS NO NETWORK CONNECTION");
+        } else if (hostNoCard()) {
+            fail((tm_ph.flags & PF_NO_CFG) ? "NO TOURNAMENT.CFG ON THE CARD"
+                                           : "NO SECRET IN TOURNAMENT.CFG");
         } else if (buttons & MenuInput_Back) {
             sfxBack();
             exitToMainMenu();

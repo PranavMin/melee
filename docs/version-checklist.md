@@ -97,7 +97,7 @@ Legend: each item is something *you* verify by eye on the running build.
       with FPS 0 and `Memory Empty in "sislib.c"` in Dolphin's log means that hook is
       missing or the screen grew past the pool: cut entries, the `li` immediate cannot
       go above 0x7FFF (0xC000 sign-extends to a negative size and panics at boot).*
-- [ ] **The TOURNAMENT title is the wordmark texture** (bold italic, drop shadow) in the
+- [ ] **The LazyTO title is the wordmark texture** (renamed from TOURNAMENT 2026-09-30, `python tools/gen_wordmark.py`) (bold italic, drop shadow) in the
       panel's top-left title tab, not SIS text; it survives redraws and disappears on B-back
       to the main menu. *`lbwordmark.c` + `lbwordmark_tex.inc` (regenerate with
       `python tools/gen_wordmark.py`, needs the Franklin Gothic Medium font on the PC that

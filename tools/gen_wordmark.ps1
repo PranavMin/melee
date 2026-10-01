@@ -1,6 +1,6 @@
 param(
   [string]$Family = "Franklin Gothic Medium",
-  [string]$Text = "TOURNAMENT",
+  [string]$Text = "LazyTO",
   [int]$W = 256,
   [int]$H = 48,
   [double]$Shear = 0.20,
