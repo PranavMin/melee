@@ -1,41 +1,18 @@
-# LazyTO — Melee tournament module
+# Archived: the LazyTO kiosk moved to [PranavMin/lazyto](https://github.com/PranavMin/lazyto)
 
-This is the [LazyTO](https://github.com/PranavMin/lazyto) fork of the
-[Melee decompilation](https://github.com/doldecomp/melee). LazyTO lets players at a Melee
-weekly pick, play and report their start.gg sets from the Wii itself.
+This fork of the [Melee decompilation](https://github.com/doldecomp/melee) used to hold the
+LazyTO kiosk module, `tournament.bin`. On 2026-10-01 the kiosk's source moved into the
+[lazyto](https://github.com/PranavMin/lazyto) repo, under
+[kiosk/](https://github.com/PranavMin/lazyto/tree/main/kiosk). It now builds against the
+unmodified decomp, which lazyto includes as a git submodule. This fork is no longer used or
+updated.
 
-This repo builds **`tournament.bin`**, the kiosk module. Venue Wiis keep running a stock
-Melee 1.02 ISO. The LazyTO Nintendont loader copies the module into RAM at boot and patches
-in a short list of hooks. Nothing on the disc changes.
+**To build the kiosk,** follow
+[docs/development.md](https://github.com/PranavMin/lazyto/blob/main/docs/development.md) in
+lazyto.
 
-The module provides the Tournament screen (set list, start, confirm), the CSS score banner and
-binds, the L+R port claim, the Z+X handwarmer, auto-scoring from the end of each game, and the
-EXI driver that talks to the relay.
+**What is kept here:**
 
-## Build
-
-```
-python configure.py --non-matching   # once
-python tools/build_module.py         # -> build/GALE01/tournament.bin
-```
-
-Details, the file format and the hook table are in
-[docs/tournament-module.md](docs/tournament-module.md). The per-build manual QA list is
-[docs/version-checklist.md](docs/version-checklist.md).
-
-## The LazyTO repos
-
-| Repo | Role |
-|---|---|
-| [lazyto](https://github.com/PranavMin/lazyto) | Relay on the venue's Raspberry Pi; talks to start.gg. Design docs and setup guides live here. |
-| **melee** (this repo, branch `vanilla-module`) | `tournament.bin`, the kiosk module. |
-| [Nintendont](https://github.com/PranavMin/Nintendont) | Wii loader: relay EXI device, module loader, relay discovery. |
-
-The wire protocol is defined once in `lazyto/protocol.yaml`; this repo carries a
-generated copy of `relay_proto.h`.
-
-## Upstream
-
-Everything outside the module's sources, `tools/build_module.py` and `docs/` is the upstream
-decomp, merged periodically from `doldecomp/melee` `master`. The upstream project's own setup
-guide is [docs/getting_started.md](docs/getting_started.md).
+- Branch `vanilla-module`: the module's history up to the move (last commit `a85a996c0`).
+- Tag `shifted-dol-final`: the retired build that compiled the kiosk into a rebuilt `main.dol`.
+- [docs/history/](docs/history/): the investigation reports from that build.
